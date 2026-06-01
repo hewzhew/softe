@@ -85,6 +85,9 @@ public class BillingService {
         LocalDateTime effectiveEnd = endTime.isAfter(startTime)
                 ? endTime
                 : startTime.plusMinutes(Math.max(1, Math.round((actualAmount / pile.getPower()) * 60.0)));
+        if (Duration.between(startTime, effectiveEnd).toSeconds() <= 0) {
+            effectiveEnd = startTime.plusMinutes(1);
+        }
         double durationHours = Duration.between(startTime, effectiveEnd).toMinutes() / 60.0;
         TariffRule rule = tariffRuleRepository.findFirstByOrderByIdDesc().orElseGet(TariffRule::defaults);
         FeeResult fee = calculateFee(startTime, effectiveEnd, actualAmount, pile.getPower(), rule);
