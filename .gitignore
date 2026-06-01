@@ -1,0 +1,50 @@
+# Local worktrees
+.worktrees/
+worktrees/
+
+# Java / Maven / Gradle
+target/
+build/
+out/
+*.class
+*.log
+
+# Keep Maven wrapper files trackable if generated later
+!.mvn/wrapper/maven-wrapper.jar
+
+# Node / Vue
+node_modules/
+dist/
+.vite/
+coverage/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# IDEs and editors
+.idea/
+.vscode/
+*.iml
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Local environment
+.env
+.env.*
+!.env.example
+
+# H2 / SQLite local databases
+*.mv.db
+*.trace.db
+*.sqlite
+*.sqlite3
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak
