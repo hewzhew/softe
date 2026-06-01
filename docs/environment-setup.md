@@ -9,6 +9,15 @@
 
 2. JDK 17
    - Spring Boot 3 推荐使用 Java 17。
+   - 本机已检测到 JDK 17 路径：`C:\Program Files\Amazon Corretto\jdk17.0.17_10`。
+   - 当前默认 `JAVA_HOME` 指向 JDK 25。项目会把编译目标锁定为 Java 17；如遇兼容问题，可在当前 PowerShell 临时切换：
+
+```powershell
+$env:JAVA_HOME = "C:\Program Files\Amazon Corretto\jdk17.0.17_10"
+$env:Path = "$env:JAVA_HOME\bin;$env:Path"
+java -version
+```
+
    - 安装后在 PowerShell 中检查：
 
 ```powershell
