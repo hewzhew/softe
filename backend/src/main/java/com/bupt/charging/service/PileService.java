@@ -46,7 +46,7 @@ public class PileService {
         return toResponse(pileRepository.save(pile));
     }
 
-    PileDtos.PileStateResponse toResponse(ChargingPile pile) {
+    public PileDtos.PileStateResponse toResponse(ChargingPile pile) {
         return new PileDtos.PileStateResponse(
                 pile.getPileId(),
                 pile.getMode(),
