@@ -6,9 +6,14 @@ export const http = axios.create({
 })
 
 export async function unwrap(promise) {
-  const response = await promise
-  if (!response.data.success) {
-    throw new Error(response.data.message || '请求失败')
+  try {
+    const response = await promise
+    if (!response.data.success) {
+      throw new Error(response.data.message || '请求失败')
+    }
+    return response.data.data
+  } catch (error) {
+    const message = error.response?.data?.message || error.message || '请求失败'
+    throw new Error(message)
   }
-  return response.data.data
 }

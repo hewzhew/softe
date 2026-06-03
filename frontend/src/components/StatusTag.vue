@@ -1,9 +1,10 @@
 <template>
-  <el-tag :type="type" size="small">{{ value || '-' }}</el-tag>
+  <el-tag :type="type" size="small">{{ label }}</el-tag>
 </template>
 
 <script setup>
 import { computed } from 'vue'
+import { statusLabel, statusTagType } from '../utils/display'
 
 const props = defineProps({
   value: {
@@ -12,17 +13,6 @@ const props = defineProps({
   }
 })
 
-const typeMap = {
-  IDLE: 'success',
-  WORKING: 'warning',
-  FAULT: 'danger',
-  OFFLINE: 'info',
-  WAITING_AREA: 'info',
-  PILE_QUEUE: 'warning',
-  CHARGING: 'success',
-  FINISHED: 'success',
-  INTERRUPTED: 'danger'
-}
-
-const type = computed(() => typeMap[props.value] || 'info')
+const label = computed(() => statusLabel(props.value))
+const type = computed(() => statusTagType(props.value))
 </script>
