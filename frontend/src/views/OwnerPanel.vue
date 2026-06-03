@@ -175,10 +175,11 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { api } from '../api/chargingApi'
 import StatusTag from '../components/StatusTag.vue'
+import { stationEvents } from '../stores/stationEvents'
 import {
   formatCurrency,
   formatDateTime,
@@ -250,7 +251,16 @@ const startHint = computed(() => {
   return '提交请求并执行调度后显示'
 })
 
-async function runAction(work, successMessage) {
+function clearOwnerState() {
+  Object.keys(carState).forEach((key) => {
+    delete carState[key]
+  })
+  bills.value = []
+  details.value = []
+  ownerForm.pileId = ''
+}
+
+async function runAction(work, successMessage, options = {}) {
   try {
     const result = await work()
     if (successMessage) {
@@ -258,7 +268,9 @@ async function runAction(work, successMessage) {
     }
     return result
   } catch (error) {
-    ElMessage.error(error.message || '操作失败')
+    if (!options.silentError) {
+      ElMessage.error(error.message || '操作失败')
+    }
     return null
   }
 }
@@ -301,8 +313,12 @@ async function modifyMode() {
   }
 }
 
-async function queryState() {
-  const result = await runAction(() => api.getCarState(ownerForm.carId), '车辆状态已刷新')
+async function queryState(options = {}) {
+  const result = await runAction(
+    () => api.getCarState(ownerForm.carId),
+    options.silent ? '' : '车辆状态已刷新',
+    { silentError: options.silent }
+  )
   if (result) {
     Object.assign(carState, result)
     ownerForm.pileId = result.assignedPileId || ownerForm.pileId
@@ -347,4 +363,14 @@ async function loadDetails(row) {
     details.value = result
   }
 }
+
+watch(() => stationEvents.revision, async () => {
+  if (['reset', 'seed'].includes(stationEvents.lastAction)) {
+    clearOwnerState()
+    return
+  }
+  if (stationEvents.lastAction === 'dispatch' && carState.carId) {
+    await queryState({ silent: true })
+  }
+})
 </script>

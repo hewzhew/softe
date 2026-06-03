@@ -4,7 +4,7 @@
       <el-card>
         <div class="card-heading compact">
           <div>
-            <p class="eyebrow">演示控制台</p>
+            <p class="eyebrow">站点控制台</p>
             <h2>系统参数</h2>
           </div>
         </div>
@@ -29,31 +29,34 @@
           </el-form-item>
         </el-form>
         <div class="action-row">
-          <el-button type="primary" @click="saveConfig">初始化参数</el-button>
-          <el-button type="primary" plain @click="seedDemo">生成演示数据</el-button>
-          <el-button type="success" @click="dispatch">执行一次调度</el-button>
-          <el-button type="danger" plain @click="resetDemo">清空演示数据</el-button>
+          <el-button type="primary" @click="saveConfig">应用参数</el-button>
+          <el-button type="primary" plain @click="seedDemo">导入排队请求</el-button>
+          <el-button type="success" @click="dispatch">执行调度</el-button>
+          <el-button type="danger" plain @click="resetDemo">清空数据</el-button>
           <el-button :icon="Refresh" circle title="刷新" @click="refresh" />
         </div>
-      </el-card>
-
-      <el-card>
-        <div class="card-heading compact">
-          <div>
-            <p class="eyebrow">验收流程</p>
-            <h2>场景动作</h2>
-          </div>
-        </div>
-        <el-steps :active="demoStep" finish-status="success" direction="vertical" class="demo-steps">
-          <el-step title="初始化参数" />
-          <el-step title="生成演示数据" />
-          <el-step title="执行一次调度" />
-          <el-step title="进入车主端或管理员端验证" />
-        </el-steps>
       </el-card>
     </div>
 
     <div class="stack">
+      <el-card class="flow-card">
+        <div class="card-heading compact">
+          <div>
+            <p class="eyebrow">业务流程</p>
+            <h2>调度链路</h2>
+          </div>
+        </div>
+        <div class="flow-list horizontal">
+          <div v-for="item in flowItems" :key="item.step" class="flow-item" :class="{ active: flowStep >= item.step }">
+            <span>{{ item.step }}</span>
+            <div>
+              <strong>{{ item.title }}</strong>
+              <small>{{ item.description }}</small>
+            </div>
+          </div>
+        </div>
+      </el-card>
+
       <div class="kpi-strip">
         <div class="kpi-item">
           <span>充电桩</span>
@@ -80,7 +83,7 @@
             <h2>充电桩</h2>
           </div>
         </div>
-        <el-table :data="piles" height="280" border empty-text="暂无充电桩，请先初始化参数">
+        <el-table :data="piles" height="280" border empty-text="暂无充电桩，请先应用参数">
           <el-table-column prop="pileId" label="编号" width="96" />
           <el-table-column label="类型" width="90">
             <template #default="{ row }">{{ modeLabel(row.mode) }}</template>
@@ -154,6 +157,7 @@ import { ElMessage } from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
 import { api } from '../api/chargingApi'
 import StatusTag from '../components/StatusTag.vue'
+import { notifyStationChanged } from '../stores/stationEvents'
 import { formatHours, formatKw, formatKwh, modeLabel } from '../utils/display'
 
 const configForm = reactive({
@@ -172,9 +176,15 @@ const queues = reactive({
 })
 
 const faultPileCount = computed(() => piles.value.filter((pile) => pile.workingState === 'FAULT').length)
-const demoStep = computed(() => {
+const flowItems = [
+  { step: 1, title: '应用站点参数', description: '配置充电桩数量、功率和队列容量' },
+  { step: 2, title: '导入排队请求', description: '车辆请求进入等候区，尚未分配桩位' },
+  { step: 3, title: '执行调度', description: '系统按模式和预计完成时间分配充电桩' },
+  { step: 4, title: '查看服务结果', description: '在车主自助或运营管理中查看状态变化' }
+]
+const flowStep = computed(() => {
   if (queues.pileQueues.length > 0) {
-    return 3
+    return 4
   }
   if (queues.waitingArea.length > 0) {
     return 2
@@ -211,16 +221,18 @@ async function refresh() {
 }
 
 async function saveConfig() {
-  const result = await runAction(() => api.updateConfig({ ...configForm }), '系统参数已初始化')
+  const result = await runAction(() => api.updateConfig({ ...configForm }), '站点参数已应用')
   if (result) {
     await refresh()
+    notifyStationChanged('config')
   }
 }
 
 async function seedDemo() {
-  const result = await runAction(() => api.seedDemo(), '演示数据已生成')
+  const result = await runAction(() => api.seedDemo(), '排队请求已导入')
   if (result) {
     await refresh()
+    notifyStationChanged('seed')
   }
 }
 
@@ -228,13 +240,15 @@ async function dispatch() {
   const result = await runAction(() => api.dispatch(), '调度已执行')
   if (result) {
     await refresh()
+    notifyStationChanged('dispatch')
   }
 }
 
 async function resetDemo() {
-  const result = await runAction(() => api.resetDemo(), '演示数据已清空')
+  const result = await runAction(() => api.resetDemo(), '数据已清空')
   if (result) {
     await refresh()
+    notifyStationChanged('reset')
   }
 }
 

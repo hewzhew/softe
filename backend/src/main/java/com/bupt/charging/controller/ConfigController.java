@@ -9,7 +9,6 @@ import com.bupt.charging.service.ChargingService;
 import com.bupt.charging.service.ConfigService;
 import com.bupt.charging.service.PileService;
 import com.bupt.charging.service.QueueService;
-import com.bupt.charging.service.SchedulerService;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -25,7 +24,6 @@ public class ConfigController {
     private final ConfigService configService;
     private final AccountService accountService;
     private final ChargingService chargingService;
-    private final SchedulerService schedulerService;
     private final PileService pileService;
     private final QueueService queueService;
 
@@ -33,14 +31,12 @@ public class ConfigController {
             ConfigService configService,
             AccountService accountService,
             ChargingService chargingService,
-            SchedulerService schedulerService,
             PileService pileService,
             QueueService queueService
     ) {
         this.configService = configService;
         this.accountService = accountService;
         this.chargingService = chargingService;
-        this.schedulerService = schedulerService;
         this.pileService = pileService;
         this.queueService = queueService;
     }
@@ -74,7 +70,6 @@ public class ConfigController {
         seedCar("CAR-F-2", ChargeMode.FAST, 45.0);
         seedCar("CAR-S-1", ChargeMode.SLOW, 20.0);
         seedCar("CAR-S-2", ChargeMode.SLOW, 30.0);
-        schedulerService.dispatchAll();
         return ApiResult.ok(snapshot());
     }
 

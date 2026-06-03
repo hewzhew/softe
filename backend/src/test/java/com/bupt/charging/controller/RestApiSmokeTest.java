@@ -3,6 +3,8 @@ package com.bupt.charging.controller;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,6 +20,9 @@ import org.springframework.http.ResponseEntity;
 class RestApiSmokeTest {
     @Autowired
     private TestRestTemplate restTemplate;
+
+    @Autowired
+    private ObjectMapper objectMapper;
 
     @Test
     void configAndAccountEndpointsReturnApiResult() {
@@ -44,5 +49,22 @@ class RestApiSmokeTest {
 
         assertEquals(HttpStatus.OK, accountResponse.getStatusCode());
         assertTrue(accountResponse.getBody().contains("CAR-REST-1"));
+    }
+
+    @Test
+    void seedCreatesWaitingRequestsAndDispatchMovesThemToPileQueues() throws Exception {
+        ResponseEntity<String> seedResponse = restTemplate.postForEntity("/api/demo/seed", null, String.class);
+
+        assertEquals(HttpStatus.OK, seedResponse.getStatusCode());
+        JsonNode seedData = objectMapper.readTree(seedResponse.getBody()).path("data");
+        assertEquals(4, seedData.path("queues").path("waitingArea").size());
+        assertEquals(0, seedData.path("queues").path("pileQueues").size());
+
+        ResponseEntity<String> dispatchResponse = restTemplate.postForEntity("/api/scheduler/dispatch", null, String.class);
+
+        assertEquals(HttpStatus.OK, dispatchResponse.getStatusCode());
+        ResponseEntity<String> snapshotResponse = restTemplate.getForEntity("/api/demo/snapshot", String.class);
+        JsonNode snapshotData = objectMapper.readTree(snapshotResponse.getBody()).path("data");
+        assertTrue(snapshotData.path("queues").path("pileQueues").size() > 0);
     }
 }

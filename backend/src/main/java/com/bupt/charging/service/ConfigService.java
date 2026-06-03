@@ -65,7 +65,8 @@ public class ConfigService {
                 request.fastPower(),
                 request.slowPower()
         );
-        pileRepository.deleteAll();
+        pileRepository.deleteAllInBatch();
+        pileRepository.flush();
         StationConfig saved = configRepository.save(config);
         if (tariffRuleRepository.findFirstByOrderByIdDesc().isEmpty()) {
             tariffRuleRepository.save(TariffRule.defaults());

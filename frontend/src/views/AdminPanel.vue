@@ -31,7 +31,7 @@
         </div>
         <el-button :icon="Refresh" circle title="刷新" @click="refresh" />
       </div>
-      <el-table :data="piles" height="360" border empty-text="暂无充电桩，请先在演示控制台初始化">
+      <el-table :data="piles" height="360" border empty-text="暂无充电桩，请先在调度控制台应用参数">
         <el-table-column prop="pileId" label="编号" width="90" />
         <el-table-column label="类型" width="90">
           <template #default="{ row }">{{ modeLabel(row.mode) }}</template>
@@ -144,11 +144,12 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
 import { api } from '../api/chargingApi'
 import StatusTag from '../components/StatusTag.vue'
+import { stationEvents } from '../stores/stationEvents'
 import { formatDateTime, formatHours, formatKw, formatKwh, modeLabel } from '../utils/display'
 
 const piles = ref([])
@@ -240,4 +241,5 @@ async function recover(pileId) {
 }
 
 onMounted(refresh)
+watch(() => stationEvents.revision, refresh)
 </script>
