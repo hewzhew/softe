@@ -10,7 +10,6 @@ import com.bupt.charging.dto.BillingDtos;
 import com.bupt.charging.dto.ChargingDtos;
 import com.bupt.charging.dto.ConfigDtos;
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -54,6 +53,6 @@ class ChargingFlowTest {
         BillingDtos.BillResponse bill = chargingService.endCharging("CAR-1", state.assignedPileId(), 30.0);
 
         assertTrue(bill.totalFee().compareTo(BigDecimal.ZERO) > 0);
-        assertFalse(billingService.queryBills("CAR-1", LocalDate.now()).isEmpty());
+        assertFalse(billingService.queryBills("CAR-1", bill.date()).isEmpty());
     }
 }

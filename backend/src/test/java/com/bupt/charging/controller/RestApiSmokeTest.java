@@ -67,4 +67,15 @@ class RestApiSmokeTest {
         JsonNode snapshotData = objectMapper.readTree(snapshotResponse.getBody()).path("data");
         assertTrue(snapshotData.path("queues").path("pileQueues").size() > 0);
     }
+
+    @Test
+    void acceptanceScenarioEndpointReturnsTeacherCaseRows() throws Exception {
+        ResponseEntity<String> response = restTemplate.getForEntity("/api/acceptance/scenario", String.class);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        JsonNode data = objectMapper.readTree(response.getBody()).path("data");
+        assertEquals(36, data.path("rows").size());
+        assertEquals("06:00", data.path("rows").get(0).path("time").asText());
+        assertTrue(data.path("sampleChecks").get(0).path("matched").asBoolean());
+    }
 }

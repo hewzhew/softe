@@ -30,5 +30,7 @@ export const api = {
   dispatch: () => unwrap(http.post('/scheduler/dispatch')),
 
   createFault: (payload) => unwrap(http.post('/faults', payload)),
-  recoverPile: (pileId) => unwrap(http.post(`/faults/${pileId}/recover`))
+  recoverPile: (pileId) => unwrap(http.post(`/faults/${pileId}/recover`)),
+
+  runAcceptanceScenario: () => unwrap(http.get('/acceptance/scenario'))
 }

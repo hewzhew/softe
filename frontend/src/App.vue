@@ -19,6 +19,9 @@
         <el-tab-pane label="运营管理" name="admin">
           <AdminPanel />
         </el-tab-pane>
+        <el-tab-pane label="测试用例" name="acceptance">
+          <AcceptancePanel />
+        </el-tab-pane>
       </el-tabs>
     </el-main>
   </el-container>
@@ -29,6 +32,7 @@ import { ref } from 'vue'
 import DemoConsole from './views/DemoConsole.vue'
 import OwnerPanel from './views/OwnerPanel.vue'
 import AdminPanel from './views/AdminPanel.vue'
+import AcceptancePanel from './views/AcceptancePanel.vue'
 
 const activeTab = ref('demo')
 </script>

@@ -260,6 +260,31 @@ body {
   margin-top: 16px;
 }
 
+.acceptance-summary {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.sample-table {
+  margin-top: 4px;
+}
+
+.acceptance-table {
+  width: 100%;
+}
+
+.acceptance-table .el-table__cell {
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.acceptance-event-row td {
+  background: #fbfdff;
+}
+
+.acceptance-slot-row td {
+  color: #475569;
+}
+
 .muted {
   color: #667085;
 }
