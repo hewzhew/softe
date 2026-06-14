@@ -11,6 +11,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface ChargingRequestRepository extends JpaRepository<ChargingRequest, Long> {
     List<ChargingRequest> findByModeAndStatusOrderByRequestTimeAsc(ChargeMode mode, RequestStatus status);
 
+    List<ChargingRequest> findByStatusOrderByRequestTimeAsc(RequestStatus status);
+
     List<ChargingRequest> findByAssignedPileIdAndStatusOrderByPileQueuePositionAsc(String pileId, RequestStatus status);
 
     List<ChargingRequest> findByAssignedPileIdAndStatusInOrderByPileQueuePositionAsc(

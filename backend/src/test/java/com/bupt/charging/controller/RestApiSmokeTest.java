@@ -98,4 +98,19 @@ class RestApiSmokeTest {
         assertEquals(6, checks.size());
         checks.forEach(check -> assertTrue(check.path("passed").asBoolean()));
     }
+
+    @Test
+    void stationSnapshotEndpointProjectsCurrentBusinessData() throws Exception {
+        ResponseEntity<String> seedResponse = restTemplate.postForEntity("/api/demo/seed", null, String.class);
+        assertEquals(HttpStatus.OK, seedResponse.getStatusCode());
+
+        ResponseEntity<String> response = restTemplate.getForEntity("/api/station/snapshot", String.class);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        JsonNode data = objectMapper.readTree(response.getBody()).path("data");
+        assertTrue(data.path("station").path("waitingArea").size() > 0);
+        assertTrue(data.path("station").has("fastPiles"));
+        assertTrue(data.path("station").has("slowPiles"));
+        assertTrue(data.path("vehicles").has("CAR-F-1"));
+    }
 }
