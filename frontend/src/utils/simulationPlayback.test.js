@@ -222,10 +222,63 @@ describe('simulation playback helpers', () => {
     assert.equal(windowed[8].sequence, 19)
   })
 
+  it('returns an empty timeline window for null non-array and empty commands', () => {
+    assert.deepEqual(visibleTimelineCommands(null, 1, 9), [])
+    assert.deepEqual(visibleTimelineCommands({ sequence: 1 }, 1, 9), [])
+    assert.deepEqual(visibleTimelineCommands([], 1, 9), [])
+  })
+
+  it('clamps the timeline window to the first command near the start', () => {
+    const commands = Array.from({ length: 30 }, (_, index) => ({
+      sequence: index + 1
+    }))
+
+    const windowed = visibleTimelineCommands(commands, 1, 9)
+
+    assert.equal(windowed.length, 9)
+    assert.equal(windowed[0].sequence, 1)
+    assert.equal(windowed[8].sequence, 9)
+  })
+
+  it('clamps the timeline window to the final command near the end', () => {
+    const commands = Array.from({ length: 30 }, (_, index) => ({
+      sequence: index + 1
+    }))
+
+    const windowed = visibleTimelineCommands(commands, 30, 9)
+
+    assert.equal(windowed.length, 9)
+    assert.equal(windowed[0].sequence, 22)
+    assert.equal(windowed[8].sequence, 30)
+  })
+
+  it('starts the timeline window at the first command when the current sequence is absent', () => {
+    const commands = Array.from({ length: 30 }, (_, index) => ({
+      sequence: index + 1
+    }))
+
+    const windowed = visibleTimelineCommands(commands, 999, 9)
+
+    assert.equal(windowed.length, 9)
+    assert.equal(windowed[0].sequence, 1)
+    assert.equal(windowed[8].sequence, 9)
+  })
+
   it('keeps the full timeline when command count is below the window size', () => {
     const commands = [{ sequence: 1 }, { sequence: 2 }]
 
+    assert.equal(visibleTimelineCommands(commands, 1, 9), commands)
     assert.deepEqual(visibleTimelineCommands(commands, 1, 9), commands)
+  })
+
+  it('falls back to the default timeline window for invalid window sizes', () => {
+    const commands = Array.from({ length: 30 }, (_, index) => ({
+      sequence: index + 1
+    }))
+
+    assert.equal(visibleTimelineCommands(commands, 10, Number.NaN).length, 18)
+    assert.equal(visibleTimelineCommands(commands, 10, 0).length, 18)
+    assert.equal(visibleTimelineCommands(commands, 10, -1).length, 18)
   })
 
   it('falls back to the default timeline window when fractional size truncates below one', () => {
