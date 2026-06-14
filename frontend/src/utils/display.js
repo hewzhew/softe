@@ -82,7 +82,7 @@ export function nextOwnerAction(state = {}) {
   }
   if (state.carState === 'WAITING_AREA') {
     const before = state.carNumberBeforePosition ?? 0
-    return `等候区排队中，前方还有 ${before} 辆车`
+    return `已进入等候区，等待运营调度；前方还有 ${before} 辆车`
   }
   if (state.carState === 'PILE_QUEUE') {
     const before = state.carNumberBeforePosition ?? 0

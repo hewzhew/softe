@@ -6,9 +6,11 @@
       v-if="runtimeMode === RUNTIME_MODES.LIVE"
       :snapshot="liveSnapshot"
       :loading="liveLoading"
+      :dispatching="liveDispatching"
       :error="liveError"
       :updated-at="liveUpdatedAt"
       @refresh="refreshLiveSnapshot"
+      @dispatch="dispatchLiveStation"
     />
 
     <template v-else>
@@ -83,7 +85,9 @@ import SimulationBranchPanel from '../components/simulation/SimulationBranchPane
 import SimulationClockBar from '../components/simulation/SimulationClockBar.vue'
 import StationMap from '../components/simulation/StationMap.vue'
 import { flattenScenarioRows } from '../utils/acceptanceDisplay'
+import { notifyStationChanged } from '../stores/stationEvents'
 import { RUNTIME_MODES } from '../utils/runtimeMode'
+import { executeStationDispatch } from '../utils/stationActions'
 import {
   advancePlaybackByMs,
   createPlaybackState,
@@ -101,6 +105,7 @@ import {
 const loading = ref(false)
 const runtimeMode = ref(RUNTIME_MODES.LIVE)
 const liveLoading = ref(false)
+const liveDispatching = ref(false)
 const liveSnapshot = ref(null)
 const liveError = ref('')
 const liveUpdatedAt = ref('')
@@ -142,6 +147,26 @@ async function refreshLiveSnapshot() {
     ElMessage.error(message)
   } finally {
     liveLoading.value = false
+  }
+}
+
+async function dispatchLiveStation() {
+  liveError.value = ''
+  liveDispatching.value = true
+  try {
+    const assignments = await executeStationDispatch({
+      api,
+      refresh: refreshLiveSnapshot,
+      notify: notifyStationChanged
+    })
+    const count = Array.isArray(assignments) ? assignments.length : 0
+    ElMessage.success(count > 0 ? `调度完成，${count} 辆车进入充电区` : '当前没有可调度车辆')
+  } catch (error) {
+    const message = error.message || '调度失败'
+    liveError.value = message
+    ElMessage.error(message)
+  } finally {
+    liveDispatching.value = false
   }
 }
 

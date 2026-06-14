@@ -33,7 +33,7 @@ describe('display helpers', () => {
     assert.equal(nextOwnerAction({}), '请先注册车辆并提交充电请求')
     assert.equal(
       nextOwnerAction({ carState: 'WAITING_AREA', carNumberBeforePosition: 2 }),
-      '等候区排队中，前方还有 2 辆车'
+      '已进入等候区，等待运营调度；前方还有 2 辆车'
     )
     assert.equal(
       nextOwnerAction({ carState: 'PILE_QUEUE', assignedPileId: 'F-1', carNumberBeforePosition: 0 }),

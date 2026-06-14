@@ -29,7 +29,10 @@
           <p class="eyebrow">管理员工作台</p>
           <h2>充电桩运行监控</h2>
         </div>
-        <el-button :icon="Refresh" circle title="刷新" @click="refresh" />
+        <div class="admin-actions">
+          <el-button type="success" :loading="dispatching" @click="dispatch">执行调度</el-button>
+          <el-button :icon="Refresh" circle title="刷新" @click="refresh" />
+        </div>
       </div>
       <el-table :data="piles" height="360" border empty-text="当前暂无充电桩数据">
         <el-table-column prop="pileId" label="编号" width="90" />
@@ -149,10 +152,12 @@ import { ElMessage } from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
 import { api } from '../api/chargingApi'
 import StatusTag from '../components/StatusTag.vue'
-import { stationEvents } from '../stores/stationEvents'
+import { notifyStationChanged, stationEvents } from '../stores/stationEvents'
+import { executeStationDispatch } from '../utils/stationActions'
 import { formatDateTime, formatHours, formatKw, formatKwh, modeLabel } from '../utils/display'
 
 const piles = ref([])
+const dispatching = ref(false)
 const queues = reactive({
   waitingArea: [],
   pileQueues: []
@@ -194,6 +199,23 @@ async function refresh() {
   piles.value = pileData
   queues.waitingArea = queueData.waitingArea || []
   queues.pileQueues = queueData.pileQueues || []
+}
+
+async function dispatch() {
+  dispatching.value = true
+  try {
+    const assignments = await executeStationDispatch({
+      api,
+      refresh,
+      notify: notifyStationChanged
+    })
+    const count = Array.isArray(assignments) ? assignments.length : 0
+    ElMessage.success(count > 0 ? `调度完成，${count} 辆车进入充电区` : '当前没有可调度车辆')
+  } catch (error) {
+    ElMessage.error(error.message || '调度失败')
+  } finally {
+    dispatching.value = false
+  }
 }
 
 async function powerOn(pileId) {
@@ -243,3 +265,12 @@ async function recover(pileId) {
 onMounted(refresh)
 watch(() => stationEvents.revision, refresh)
 </script>
+
+<style scoped>
+.admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+</style>
