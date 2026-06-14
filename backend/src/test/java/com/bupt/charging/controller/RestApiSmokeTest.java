@@ -94,6 +94,8 @@ class RestApiSmokeTest {
         assertEquals(37, data.path("snapshots").size());
         assertEquals(36, data.path("transitions").size());
         assertEquals(36, data.path("tableRows").size());
-        assertTrue(data.path("checks").get(0).path("passed").asBoolean());
+        JsonNode checks = data.path("checks");
+        assertEquals(6, checks.size());
+        checks.forEach(check -> assertTrue(check.path("passed").asBoolean()));
     }
 }

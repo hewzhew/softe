@@ -60,6 +60,7 @@ class AcceptanceScenarioServiceTest {
         assertEquals(37, replay.snapshots().size());
         assertEquals(36, replay.transitions().size());
         assertEquals(36, replay.tableRows().size());
+        assertEquals(6, replay.checks().size());
         assertTrue(replay.checks().stream().allMatch(ScenarioDtos.ScenarioCheck::passed));
 
         var initial = replay.snapshots().get(0);
