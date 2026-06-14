@@ -76,9 +76,9 @@ public class StationSnapshotService {
             Map<String, StationDtos.VehicleState> vehicles
     ) {
         List<ChargingRequest> queue = requestRepository
-                .findByAssignedPileIdAndStatusOrderByPileQueuePositionAsc(
+                .findByAssignedPileIdAndStatusInOrderByPileQueuePositionAsc(
                         pile.getPileId(),
-                        RequestStatus.PILE_QUEUE
+                        List.of(RequestStatus.CHARGING, RequestStatus.PILE_QUEUE)
                 );
         for (ChargingRequest request : queue) {
             vehicles.put(request.getCarId(), vehicleState(request, pile.getPileId()));

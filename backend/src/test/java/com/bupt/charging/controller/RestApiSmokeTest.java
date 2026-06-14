@@ -113,4 +113,52 @@ class RestApiSmokeTest {
         assertTrue(data.path("station").has("slowPiles"));
         assertTrue(data.path("vehicles").has("CAR-F-1"));
     }
+
+    @Test
+    void stationSnapshotIncludesChargingVehicleInPileProjection() throws Exception {
+        ResponseEntity<String> seedResponse = restTemplate.postForEntity("/api/demo/seed", null, String.class);
+        assertEquals(HttpStatus.OK, seedResponse.getStatusCode());
+        ResponseEntity<String> dispatchResponse = restTemplate.postForEntity(
+                "/api/scheduler/dispatch",
+                null,
+                String.class
+        );
+        assertEquals(HttpStatus.OK, dispatchResponse.getStatusCode());
+        ResponseEntity<String> carStateResponse = restTemplate.getForEntity(
+                "/api/charging/cars/CAR-F-1/state",
+                String.class
+        );
+        assertEquals(HttpStatus.OK, carStateResponse.getStatusCode());
+        String assignedPileId = objectMapper.readTree(carStateResponse.getBody())
+                .path("data")
+                .path("assignedPileId")
+                .asText();
+
+        ResponseEntity<String> startResponse = restTemplate.postForEntity(
+                "/api/charging/CAR-F-1/start",
+                Map.of("pileId", assignedPileId),
+                String.class
+        );
+        assertEquals(HttpStatus.OK, startResponse.getStatusCode());
+
+        ResponseEntity<String> response = restTemplate.getForEntity("/api/station/snapshot", String.class);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        JsonNode data = objectMapper.readTree(response.getBody()).path("data");
+        JsonNode chargingVehicle = data.path("vehicles").path("CAR-F-1");
+        assertEquals("CHARGING", chargingVehicle.path("state").asText());
+        assertEquals(assignedPileId, chargingVehicle.path("position").asText());
+        assertEquals(4, data.path("metrics").path("pileQueueCount").asInt());
+
+        JsonNode fastPiles = data.path("station").path("fastPiles");
+        boolean chargingVehicleInPileQueue = false;
+        for (JsonNode pile : fastPiles) {
+            if (assignedPileId.equals(pile.path("id").asText())) {
+                for (JsonNode vehicleId : pile.path("queue")) {
+                    chargingVehicleInPileQueue = chargingVehicleInPileQueue || "CAR-F-1".equals(vehicleId.asText());
+                }
+            }
+        }
+        assertTrue(chargingVehicleInPileQueue);
+    }
 }
