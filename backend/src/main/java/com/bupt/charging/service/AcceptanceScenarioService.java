@@ -2,6 +2,7 @@ package com.bupt.charging.service;
 
 import com.bupt.charging.domain.TariffRule;
 import com.bupt.charging.dto.AcceptanceDtos;
+import com.bupt.charging.dto.ScenarioDtos;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
@@ -77,6 +78,143 @@ public class AcceptanceScenarioService {
             rows.add(state.snapshot(event, notes));
         }
         return new AcceptanceDtos.AcceptanceScenarioResponse(config(), rows, sampleChecks(rows));
+    }
+
+    public ScenarioDtos.ReplayBundle runCourseSampleReplay() {
+        ScenarioState state = new ScenarioState();
+        List<ScenarioDtos.ScenarioCommand> commands = new ArrayList<>();
+        List<ScenarioDtos.StationSnapshot> snapshots = new ArrayList<>();
+        List<ScenarioDtos.ScenarioTransition> transitions = new ArrayList<>();
+        List<AcceptanceDtos.AcceptanceEventRow> rows = new ArrayList<>();
+
+        snapshots.add(state.replaySnapshot(0, "06:00", 0, List.of("初始站点状态")));
+        long commandSequence = 0;
+        for (String rawEvent : DEFAULT_EVENTS) {
+            ScenarioEvent event = ScenarioEvent.parse(rawEvent);
+            commandSequence++;
+            commands.add(toCommand(commandSequence, rawEvent, event));
+            ScenarioDtos.StationSnapshot before = snapshots.get(snapshots.size() - 1);
+            state.advanceTo(event.time);
+            String notes = state.apply(event);
+            AcceptanceDtos.AcceptanceEventRow row = state.snapshot(event, notes);
+            rows.add(row);
+            ScenarioDtos.StationSnapshot after = state.replaySnapshot(
+                    commandSequence,
+                    event.time.format(TIME_FORMAT),
+                    commandSequence,
+                    noteList(notes)
+            );
+            snapshots.add(after);
+            transitions.add(transitionFrom(before, after, event, notes));
+        }
+
+        return new ScenarioDtos.ReplayBundle(
+                scenarioDefinition(),
+                commands,
+                snapshots,
+                transitions,
+                replayChecks(sampleChecks(rows)),
+                rows
+        );
+    }
+
+    private ScenarioDtos.ScenarioDefinition scenarioDefinition() {
+        return new ScenarioDtos.ScenarioDefinition(
+                "course-sample",
+                "课程事件序列",
+                "2026-06-14",
+                "06:00",
+                "09:30",
+                new ScenarioDtos.PileConfig(List.of("F1", "F2"), List.of("T1", "T2", "T3"))
+        );
+    }
+
+    private ScenarioDtos.ScenarioCommand toCommand(long sequence, String rawEvent, ScenarioEvent event) {
+        String type = switch (event.source + ":" + event.operation) {
+            case "A:F", "A:T" -> "SubmitChargingRequest";
+            case "A:O" -> "CancelChargingRequest";
+            case "B:O" -> event.amount == 0.0 ? "MarkPileFault" : "RecoverPile";
+            case "C:O" -> "ModifyRequestAmount";
+            default -> "UnknownCommand";
+        };
+        String mode = "F".equals(event.operation) ? "FAST" : "T".equals(event.operation) ? "SLOW" : "";
+        String display = switch (type) {
+            case "SubmitChargingRequest" -> event.target + " 提交" + ("FAST".equals(mode) ? "快充" : "慢充") + "请求";
+            case "CancelChargingRequest" -> event.target + " 取消当前请求";
+            case "MarkPileFault" -> event.target + " 发生故障";
+            case "RecoverPile" -> event.target + " 恢复运行";
+            case "ModifyRequestAmount" -> event.target + " 修改请求电量为 " + formatNumber(event.amount);
+            default -> rawEvent;
+        };
+        return new ScenarioDtos.ScenarioCommand(
+                sequence,
+                event.time.format(TIME_FORMAT),
+                type,
+                event.target,
+                mode,
+                formatNumber(event.amount),
+                event.rawPayload,
+                display
+        );
+    }
+
+    private List<String> noteList(String notes) {
+        return notes == null || notes.isBlank() ? List.of() : List.of(notes);
+    }
+
+    private List<ScenarioDtos.ScenarioCheck> replayChecks(List<AcceptanceDtos.AcceptanceSampleCheck> checks) {
+        List<ScenarioDtos.ScenarioCheck> result = new ArrayList<>();
+        for (int i = 0; i < checks.size(); i++) {
+            AcceptanceDtos.AcceptanceSampleCheck check = checks.get(i);
+            result.add(new ScenarioDtos.ScenarioCheck(
+                    "check-" + String.format(Locale.ROOT, "%03d", i + 1),
+                    check.time() + " " + check.column(),
+                    check.expected(),
+                    check.actual(),
+                    check.matched(),
+                    "course-excel"
+            ));
+        }
+        return result;
+    }
+
+    private ScenarioDtos.ScenarioTransition transitionFrom(
+            ScenarioDtos.StationSnapshot before,
+            ScenarioDtos.StationSnapshot after,
+            ScenarioEvent event,
+            String notes
+    ) {
+        List<ScenarioDtos.TransitionChange> changes = new ArrayList<>();
+        changes.add(new ScenarioDtos.TransitionChange(
+                event.source.equals("B") ? "pile" : "vehicle",
+                event.target,
+                commandChangeType(event),
+                before.time(),
+                after.time(),
+                notes == null || notes.isBlank() ? "课程事件：" + event.rawPayload : notes
+        ));
+        return new ScenarioDtos.ScenarioTransition(
+                before.sequence(),
+                after.sequence(),
+                after.time(),
+                changes
+        );
+    }
+
+    private String commandChangeType(ScenarioEvent event) {
+        if ("B".equals(event.source) && event.amount == 0.0) {
+            return "PILE_FAULTED";
+        }
+        if ("B".equals(event.source)) {
+            return "PILE_RECOVERED";
+        }
+        if ("A".equals(event.source) && "O".equals(event.operation)) {
+            return "REQUEST_CANCELLED";
+        }
+        if ("C".equals(event.source)) {
+            return "REQUEST_AMOUNT_CHANGED";
+        }
+        return "REQUEST_SUBMITTED";
     }
 
     private AcceptanceDtos.AcceptanceScenarioConfig config() {
@@ -372,6 +510,88 @@ public class AcceptanceScenarioService {
                     pileCells("T3", event.time),
                     waitingText(),
                     notes
+            );
+        }
+
+        private ScenarioDtos.StationSnapshot replaySnapshot(
+                long sequence,
+                String time,
+                long appliedCommandSequence,
+                List<String> ruleNotes
+        ) {
+            List<ScenarioDtos.PileState> fastPiles = new ArrayList<>();
+            List<ScenarioDtos.PileState> slowPiles = new ArrayList<>();
+            Map<String, ScenarioDtos.VehicleState> vehicles = new LinkedHashMap<>();
+            LocalDateTime snapshotTime = LocalDateTime.of(SCENARIO_DATE, LocalTime.parse(time, TIME_FORMAT));
+
+            for (ScenarioVehicle vehicle : waitingArea) {
+                vehicles.put(vehicle.carId, vehicleState(vehicle, "WAITING", "WAITING_AREA", vehicle.chargedAmount));
+            }
+            for (ScenarioPile pile : piles.values()) {
+                ScenarioDtos.PileState pileState = pileState(pile, vehicles, snapshotTime);
+                if ("F".equals(pile.mode)) {
+                    fastPiles.add(pileState);
+                } else {
+                    slowPiles.add(pileState);
+                }
+            }
+
+            return new ScenarioDtos.StationSnapshot(
+                    sequence,
+                    time,
+                    appliedCommandSequence,
+                    new ScenarioDtos.StationState(
+                            waitingArea.stream().map(vehicle -> vehicle.carId).toList(),
+                            fastPiles,
+                            slowPiles
+                    ),
+                    vehicles,
+                    ruleNotes
+            );
+        }
+
+        private ScenarioDtos.PileState pileState(
+                ScenarioPile pile,
+                Map<String, ScenarioDtos.VehicleState> vehicles,
+                LocalDateTime snapshotTime
+        ) {
+            List<String> queue = pile.queue.stream().map(vehicle -> vehicle.carId).toList();
+            for (int i = 0; i < pile.queue.size(); i++) {
+                ScenarioVehicle vehicle = pile.queue.get(i);
+                double chargedKwh = i == 0 && !pile.fault
+                        ? vehicle.chargedAmount(snapshotTime, pile.power)
+                        : vehicle.chargedAmount;
+                vehicles.put(vehicle.carId, vehicleState(
+                        vehicle,
+                        i == 0 && !pile.fault ? "CHARGING" : "PILE_QUEUE",
+                        pile.id,
+                        chargedKwh
+                ));
+            }
+            return new ScenarioDtos.PileState(
+                    pile.id,
+                    "F".equals(pile.mode) ? "FAST" : "SLOW",
+                    pile.fault ? "FAULT" : "RUNNING",
+                    queue.isEmpty() || pile.fault ? null : queue.get(0),
+                    queue,
+                    formatNumber(pile.power)
+            );
+        }
+
+        private ScenarioDtos.VehicleState vehicleState(
+                ScenarioVehicle vehicle,
+                String state,
+                String position,
+                double chargedKwh
+        ) {
+            return new ScenarioDtos.VehicleState(
+                    vehicle.carId,
+                    "F".equals(vehicle.mode) ? "FAST" : "SLOW",
+                    state,
+                    formatNumber(vehicle.targetAmount),
+                    formatNumber(chargedKwh),
+                    vehicle.mode + vehicle.sequence,
+                    position
             );
         }
 
