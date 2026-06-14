@@ -76,4 +76,27 @@ describe('simulation playback helpers', () => {
     assert.equal(state.status, 'loaded')
     assert.equal(state.currentSequence, 0)
   })
+
+  it('normalizes fractional seek targets to valid snapshots', () => {
+    const state = seekToSequence(loadReplayBundle(createPlaybackState(), bundle), 0.5)
+
+    assert.equal(state.currentSequence, 0)
+    assert.equal(state.currentSnapshot.sequence, 0)
+  })
+
+  it('keeps null and empty bundles empty and non-playable', () => {
+    assert.deepEqual(loadReplayBundle(createPlaybackState(), null), createPlaybackState())
+    assert.deepEqual(loadReplayBundle(createPlaybackState(), { snapshots: [] }), createPlaybackState())
+
+    const state = playPlayback(loadReplayBundle(createPlaybackState(), null))
+    assert.equal(state.status, 'empty')
+    assert.equal(state.bundle, null)
+    assert.equal(state.currentSnapshot, null)
+  })
+
+  it('ignores invalid playback speeds', () => {
+    const state = setPlaybackSpeed(loadReplayBundle(createPlaybackState(), bundle), 3)
+
+    assert.equal(state.speed, 1)
+  })
 })

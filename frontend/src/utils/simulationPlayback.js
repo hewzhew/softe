@@ -14,13 +14,18 @@ export function createPlaybackState() {
 }
 
 export function loadReplayBundle(state, bundle) {
+  if (!hasSnapshots(bundle)) {
+    return createPlaybackState()
+  }
+
   const initialSnapshot = bundle?.snapshots?.[0] || null
+  const maxSequence = maxSnapshotSequence(bundle)
 
   return derive({
     ...state,
     status: 'loaded',
     bundle,
-    currentSequence: initialSnapshot?.sequence ?? 0,
+    currentSequence: normalizeSequence(initialSnapshot?.sequence ?? 0, maxSequence),
     currentTime: initialSnapshot?.time || bundle?.scenario?.startTime || '',
     speed: 1
   })
@@ -48,9 +53,10 @@ export function stepForward(state) {
   }
 
   const maxSequence = maxSnapshotSequence(state.bundle)
+  const currentSequence = normalizeSequence(state.currentSequence, maxSequence)
   return derive({
     ...state,
-    currentSequence: clampSequence(state.currentSequence + 1, maxSequence)
+    currentSequence: normalizeSequence(currentSequence + 1, maxSequence)
   })
 }
 
@@ -59,9 +65,11 @@ export function stepBackward(state) {
     return state
   }
 
+  const maxSequence = maxSnapshotSequence(state.bundle)
+  const currentSequence = normalizeSequence(state.currentSequence, maxSequence)
   return derive({
     ...state,
-    currentSequence: clampSequence(state.currentSequence - 1, maxSnapshotSequence(state.bundle)),
+    currentSequence: normalizeSequence(currentSequence - 1, maxSequence),
     status: 'paused'
   })
 }
@@ -71,9 +79,10 @@ export function seekToSequence(state, sequence) {
     return state
   }
 
+  const maxSequence = maxSnapshotSequence(state.bundle)
   return derive({
     ...state,
-    currentSequence: clampSequence(sequence, maxSnapshotSequence(state.bundle))
+    currentSequence: normalizeSequence(sequence, maxSequence, state.currentSequence)
   })
 }
 
@@ -97,14 +106,16 @@ function derive(state) {
   const snapshots = state.bundle?.snapshots || []
   const commands = state.bundle?.commands || []
   const transitions = state.bundle?.transitions || []
-  const currentSnapshot = snapshots.find((snapshot) => snapshot.sequence === state.currentSequence) || null
-  const currentCommand = commands.find((command) => command.sequence === state.currentSequence) || null
-  const currentTransition = transitions.find((transition) => transition.toSequence === state.currentSequence) || null
   const maxSequence = maxSnapshotSequence(state.bundle)
+  const currentSequence = normalizeSequence(state.currentSequence, maxSequence)
+  const currentSnapshot = snapshots.find((snapshot) => snapshot.sequence === currentSequence) || null
+  const currentCommand = commands.find((command) => command.sequence === currentSequence) || null
+  const currentTransition = transitions.find((transition) => transition.toSequence === currentSequence) || null
 
   return {
     ...state,
-    status: deriveStatus(state, maxSequence),
+    currentSequence,
+    status: deriveStatus({ ...state, currentSequence }, maxSequence),
     currentSnapshot,
     currentCommand,
     currentTransition,
@@ -128,12 +139,17 @@ function deriveStatus(state, maxSequence) {
   return 'paused'
 }
 
-function clampSequence(sequence, maxSequence) {
-  if (!Number.isFinite(sequence)) {
+function hasSnapshots(bundle) {
+  return Array.isArray(bundle?.snapshots) && bundle.snapshots.length > 0
+}
+
+function normalizeSequence(sequence, maxSequence, fallback = 0) {
+  const value = Number.isFinite(sequence) ? sequence : fallback
+  if (!Number.isFinite(value)) {
     return 0
   }
 
-  return Math.max(0, Math.min(sequence, maxSequence))
+  return Math.max(0, Math.min(Math.trunc(value), maxSequence))
 }
 
 function maxSnapshotSequence(bundle) {
