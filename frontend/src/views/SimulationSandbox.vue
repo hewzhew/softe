@@ -26,35 +26,28 @@
       @speed="setSpeed"
     />
 
-    <StationMap :snapshot="playback.currentSnapshot" />
+    <div class="simulation-layout">
+      <div class="simulation-main">
+        <StationMap :snapshot="playback.currentSnapshot" />
+        <EventTimeline
+          :commands="bundle?.commands || []"
+          :current-sequence="playback.currentSequence"
+          @seek="seek"
+        />
+        <VerificationPanel
+          :checks="bundle?.checks || []"
+          :table-rows="bundle?.tableRows || []"
+          @copy="copyRows"
+        />
+      </div>
 
-    <el-card class="sandbox-overview" shadow="never">
-      <el-empty v-if="!loaded" description="加载后显示 06:00 到 09:30 的运行回放" />
-      <template v-else>
-        <div class="kpi-strip">
-          <div class="kpi-item">
-            <span>当前步骤</span>
-            <strong>{{ playback.currentSequence }}/{{ maxSequence }}</strong>
-          </div>
-          <div class="kpi-item">
-            <span>开始时间</span>
-            <strong>{{ scenario?.startTime || '--:--' }}</strong>
-          </div>
-          <div class="kpi-item">
-            <span>结束时间</span>
-            <strong>{{ scenario?.stopTime || '--:--' }}</strong>
-          </div>
-          <div class="kpi-item">
-            <span>当前命令</span>
-            <strong>{{ currentCommandLabel }}</strong>
-          </div>
-          <div class="kpi-item">
-            <span>核对结果</span>
-            <strong>{{ passedChecks }}/{{ checkCount }}</strong>
-          </div>
-        </div>
-      </template>
-    </el-card>
+      <aside class="simulation-side">
+        <PlaybackInspector
+          :command="playback.currentCommand"
+          :transition="playback.currentTransition"
+        />
+      </aside>
+    </div>
   </div>
 </template>
 
@@ -62,6 +55,9 @@
 import { computed, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { api } from '../api/chargingApi'
+import EventTimeline from '../components/simulation/EventTimeline.vue'
+import PlaybackInspector from '../components/simulation/PlaybackInspector.vue'
+import VerificationPanel from '../components/simulation/VerificationPanel.vue'
 import ScenarioLoader from '../components/simulation/ScenarioLoader.vue'
 import SimulationClockBar from '../components/simulation/SimulationClockBar.vue'
 import StationMap from '../components/simulation/StationMap.vue'
@@ -72,6 +68,7 @@ import {
   pausePlayback,
   playPlayback,
   resetPlayback,
+  seekToSequence,
   setPlaybackSpeed,
   stepBackward,
   stepForward
@@ -86,7 +83,6 @@ const loaded = computed(() => Boolean(bundle.value))
 const playing = computed(() => playback.value.status === 'playing')
 const commandCount = computed(() => bundle.value?.commands?.length || 0)
 const snapshotCount = computed(() => bundle.value?.snapshots?.length || 0)
-const checkCount = computed(() => bundle.value?.checks?.length || 0)
 const maxSequence = computed(() => {
   const sequences = (bundle.value?.snapshots || [])
     .map((snapshot) => snapshot.sequence)
@@ -97,8 +93,6 @@ const canPlay = computed(() => loaded.value && playback.value.status !== 'comple
 const canStepBack = computed(() => loaded.value && playback.value.currentSequence > 0)
 const canStepForward = computed(() => loaded.value && playback.value.currentSequence < maxSequence.value)
 const canReset = computed(() => loaded.value)
-const passedChecks = computed(() => (bundle.value?.checks || []).filter((check) => check.passed).length)
-const currentCommandLabel = computed(() => playback.value.currentCommand?.displayText || '等待下一步')
 
 async function loadScenario() {
   loading.value = true
@@ -131,6 +125,10 @@ function stepForwardAction() {
 
 function reset() {
   playback.value = resetPlayback(playback.value)
+}
+
+function seek(sequence) {
+  playback.value = seekToSequence(playback.value, sequence)
 }
 
 function setSpeed(speed) {
@@ -174,9 +172,5 @@ async function copyRows() {
 .simulation-sandbox {
   display: grid;
   gap: 16px;
-}
-
-.sandbox-overview {
-  min-height: 150px;
 }
 </style>
