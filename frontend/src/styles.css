@@ -314,6 +314,65 @@ body {
   border: 1px solid #dbe3ec;
 }
 
+.runtime-mode-card :deep(.el-card__body),
+.runtime-mode-card {
+  min-width: 0;
+}
+
+.runtime-mode-card :deep(.el-card__body) {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.runtime-mode-copy h2 {
+  margin: 2px 0 4px;
+  color: #172033;
+  font-size: 20px;
+  font-weight: 650;
+}
+
+.runtime-mode-copy span {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.live-station-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.runtime-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.runtime-metrics div {
+  min-height: 68px;
+  padding: 12px;
+  border: 1px solid #e4eaf1;
+  border-radius: 6px;
+  background: #f8fafc;
+}
+
+.runtime-metrics span,
+.runtime-metrics strong {
+  display: block;
+}
+
+.runtime-metrics span {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.runtime-metrics strong {
+  margin-top: 6px;
+  color: #172033;
+  font-size: 20px;
+}
+
 .simulation-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 360px;
@@ -589,6 +648,15 @@ body {
   .card-heading {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .runtime-mode-card :deep(.el-card__body) {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .runtime-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .kpi-strip {

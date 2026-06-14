@@ -5,7 +5,9 @@
         <p class="eyebrow">站点状态</p>
         <h2>充电站沙盘</h2>
       </div>
-      <el-tag effect="plain">{{ snapshot?.time || '--:--' }}</el-tag>
+      <el-tag :type="mode === 'LIVE' ? 'success' : 'warning'" effect="plain">
+        {{ mode === 'LIVE' ? '实时' : '推演' }} · {{ snapshot?.time || '--:--' }}
+      </el-tag>
     </div>
 
     <div v-if="!snapshot" class="sandbox-empty">加载课程事件序列后显示站点状态</div>
@@ -51,7 +53,8 @@ import PileLane from './PileLane.vue'
 import VehicleToken from './VehicleToken.vue'
 
 const props = defineProps({
-  snapshot: { type: Object, default: null }
+  snapshot: { type: Object, default: null },
+  mode: { type: String, default: 'SIMULATION' }
 })
 
 const station = computed(() => props.snapshot?.station || {})
