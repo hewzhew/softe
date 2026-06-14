@@ -69,6 +69,7 @@ import {
   pausePlayback,
   playPlayback,
   resetPlayback,
+  scalePlaybackElapsedMs,
   seekToSequence,
   setPlaybackSpeed,
   stepBackward,
@@ -155,7 +156,7 @@ function startPlaybackTimer() {
     const now = performance.now()
     const elapsedMs = now - lastPlaybackTick.value
     lastPlaybackTick.value = now
-    playback.value = advancePlaybackByMs(playback.value, elapsedMs)
+    playback.value = advancePlaybackByMs(playback.value, scalePlaybackElapsedMs(elapsedMs))
     if (playback.value.status === 'completed') {
       stopPlaybackTimer()
     }

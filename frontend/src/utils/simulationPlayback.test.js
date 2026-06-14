@@ -7,6 +7,7 @@ import {
   pausePlayback,
   playPlayback,
   resetPlayback,
+  scalePlaybackElapsedMs,
   seekToSequence,
   setPlaybackSpeed,
   stepBackward,
@@ -121,6 +122,18 @@ describe('simulation playback helpers', () => {
     const state = setPlaybackSpeed(loadReplayBundle(createPlaybackState(), bundle), 3)
 
     assert.equal(state.speed, 1)
+  })
+
+  it('scales real elapsed milliseconds for sandbox demo playback', () => {
+    assert.equal(scalePlaybackElapsedMs(1000), 60_000)
+    assert.equal(scalePlaybackElapsedMs(250, 120), 30_000)
+  })
+
+  it('conservatively ignores invalid playback elapsed scaling inputs', () => {
+    assert.equal(scalePlaybackElapsedMs(Number.NaN), 0)
+    assert.equal(scalePlaybackElapsedMs(-1000), 0)
+    assert.equal(scalePlaybackElapsedMs(1000, 0), 0)
+    assert.equal(scalePlaybackElapsedMs(1000, Number.NaN), 0)
   })
 
   it('advances playing playback by elapsed milliseconds and speed', () => {

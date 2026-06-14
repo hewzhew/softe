@@ -102,6 +102,14 @@ export function setPlaybackSpeed(state, speed) {
   return { ...state, speed }
 }
 
+export function scalePlaybackElapsedMs(elapsedMs, scale = 60) {
+  if (!Number.isFinite(elapsedMs) || elapsedMs <= 0 || !Number.isFinite(scale) || scale <= 0) {
+    return 0
+  }
+
+  return elapsedMs * scale
+}
+
 export function advancePlaybackByMs(state, elapsedMs) {
   if (state.status !== 'playing' || !state.bundle || !Number.isFinite(elapsedMs) || elapsedMs <= 0) {
     return state
