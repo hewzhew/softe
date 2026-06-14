@@ -32,5 +32,8 @@ export const api = {
   createFault: (payload) => unwrap(http.post('/faults', payload)),
   recoverPile: (pileId) => unwrap(http.post(`/faults/${pileId}/recover`)),
 
-  runAcceptanceScenario: () => unwrap(http.get('/acceptance/scenario'))
+  runAcceptanceScenario: () => unwrap(http.get('/acceptance/scenario')),
+  getCourseScenario: () => unwrap(http.get('/scenarios/course-sample')),
+  runCourseScenario: () => unwrap(http.post('/scenarios/course-sample/run')),
+  getStationSnapshot: () => unwrap(http.get('/station/snapshot'))
 }
