@@ -314,12 +314,12 @@ body {
   border: 1px solid #dbe3ec;
 }
 
-.runtime-mode-card :deep(.el-card__body),
+.runtime-mode-card .el-card__body,
 .runtime-mode-card {
   min-width: 0;
 }
 
-.runtime-mode-card :deep(.el-card__body) {
+.runtime-mode-card .el-card__body {
   display: flex;
   gap: 16px;
   align-items: center;
@@ -650,7 +650,7 @@ body {
     flex-direction: column;
   }
 
-  .runtime-mode-card :deep(.el-card__body) {
+  .runtime-mode-card .el-card__body {
     align-items: flex-start;
     flex-direction: column;
   }
