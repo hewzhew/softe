@@ -117,9 +117,10 @@ export function visibleTimelineCommands(commands, currentSequence, windowSize = 
     return []
   }
 
-  const size = Number.isFinite(windowSize) && windowSize > 0
+  const requestedSize = Number.isFinite(windowSize)
     ? Math.trunc(windowSize)
     : 18
+  const size = requestedSize > 0 ? requestedSize : 18
 
   if (commands.length <= size) {
     return commands

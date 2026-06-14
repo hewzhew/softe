@@ -227,4 +227,14 @@ describe('simulation playback helpers', () => {
 
     assert.deepEqual(visibleTimelineCommands(commands, 1, 9), commands)
   })
+
+  it('falls back to the default timeline window when fractional size truncates below one', () => {
+    const commands = Array.from({ length: 20 }, (_, index) => ({
+      sequence: index + 1
+    }))
+
+    const windowed = visibleTimelineCommands(commands, 10, 0.5)
+
+    assert.equal(windowed.length, 18)
+  })
 })
