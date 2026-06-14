@@ -1,67 +1,87 @@
 <template>
   <div class="simulation-sandbox">
-    <ScenarioLoader
-      :loading="loading"
-      :loaded="loaded"
-      :scenario="scenario"
-      :command-count="commandCount"
-      :snapshot-count="snapshotCount"
-      @load="loadScenario"
-      @copy="copyRows"
+    <RuntimeModeSwitch v-model="runtimeMode" />
+
+    <LiveStationPanel
+      v-if="runtimeMode === RUNTIME_MODES.LIVE"
+      :snapshot="liveSnapshot"
+      :loading="liveLoading"
+      @refresh="refreshLiveSnapshot"
     />
 
-    <SimulationClockBar
-      :current-time="playback.currentTime"
-      :playing="playing"
-      :can-play="canPlay"
-      :can-step-back="canStepBack"
-      :can-step-forward="canStepForward"
-      :can-reset="canReset"
-      :speed="playback.speed"
-      @play="play"
-      @pause="pause"
-      @step-back="stepBack"
-      @step-forward="stepForwardAction"
-      @reset="reset"
-      @speed="setSpeed"
-    />
+    <template v-else>
+      <ScenarioLoader
+        :loading="loading"
+        :loaded="loaded"
+        :scenario="scenario"
+        :command-count="commandCount"
+        :snapshot-count="snapshotCount"
+        @load="loadScenario"
+        @copy="copyRows"
+      />
 
-    <div class="simulation-layout">
-      <div class="simulation-main">
-        <StationMap :snapshot="playback.currentSnapshot" />
-        <EventTimeline
-          :commands="bundle?.commands || []"
-          :current-sequence="playback.currentSequence"
-          @seek="seek"
-        />
-        <VerificationPanel
-          :checks="bundle?.checks || []"
-          :table-rows="bundle?.tableRows || []"
-          @copy="copyRows"
-        />
+      <SimulationClockBar
+        :current-time="playback.currentTime"
+        :playing="playing"
+        :can-play="canPlay"
+        :can-step-back="canStepBack"
+        :can-step-forward="canStepForward"
+        :can-reset="canReset"
+        :speed="playback.speed"
+        @play="play"
+        @pause="pause"
+        @step-back="stepBack"
+        @step-forward="stepForwardAction"
+        @reset="reset"
+        @speed="setSpeed"
+      />
+
+      <div class="simulation-layout">
+        <div class="simulation-main">
+          <StationMap :snapshot="playback.currentSnapshot" mode="SIMULATION" />
+          <EventTimeline
+            :commands="bundle?.commands || []"
+            :current-sequence="playback.currentSequence"
+            @seek="seek"
+          />
+          <VerificationPanel
+            :checks="bundle?.checks || []"
+            :table-rows="bundle?.tableRows || []"
+            @copy="copyRows"
+          />
+        </div>
+
+        <aside class="simulation-side">
+          <SimulationBranchPanel
+            :session="session"
+            :source-summary="sourceSummary"
+            :scenario="scenario"
+          />
+          <PlaybackInspector
+            :command="playback.currentCommand"
+            :transition="playback.currentTransition"
+          />
+        </aside>
       </div>
-
-      <aside class="simulation-side">
-        <PlaybackInspector
-          :command="playback.currentCommand"
-          :transition="playback.currentTransition"
-        />
-      </aside>
-    </div>
+    </template>
   </div>
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { api } from '../api/chargingApi'
 import EventTimeline from '../components/simulation/EventTimeline.vue'
+import LiveStationPanel from '../components/simulation/LiveStationPanel.vue'
 import PlaybackInspector from '../components/simulation/PlaybackInspector.vue'
+import RuntimeModeSwitch from '../components/simulation/RuntimeModeSwitch.vue'
 import VerificationPanel from '../components/simulation/VerificationPanel.vue'
 import ScenarioLoader from '../components/simulation/ScenarioLoader.vue'
+import SimulationBranchPanel from '../components/simulation/SimulationBranchPanel.vue'
 import SimulationClockBar from '../components/simulation/SimulationClockBar.vue'
 import StationMap from '../components/simulation/StationMap.vue'
 import { flattenScenarioRows } from '../utils/acceptanceDisplay'
+import { RUNTIME_MODES } from '../utils/runtimeMode'
 import {
   advancePlaybackByMs,
   createPlaybackState,
@@ -77,12 +97,17 @@ import {
 } from '../utils/simulationPlayback'
 
 const loading = ref(false)
+const runtimeMode = ref(RUNTIME_MODES.LIVE)
+const liveLoading = ref(false)
+const liveSnapshot = ref(null)
 const playback = ref(createPlaybackState())
 const playbackTimerId = ref(null)
 const lastPlaybackTick = ref(null)
 
 const bundle = computed(() => playback.value.bundle)
 const scenario = computed(() => bundle.value?.scenario || null)
+const session = computed(() => bundle.value?.session || null)
+const sourceSummary = computed(() => bundle.value?.sourceSummary || null)
 const loaded = computed(() => Boolean(bundle.value))
 const playing = computed(() => playback.value.status === 'playing')
 const commandCount = computed(() => bundle.value?.commands?.length || 0)
@@ -97,6 +122,17 @@ const canPlay = computed(() => loaded.value && playback.value.status !== 'comple
 const canStepBack = computed(() => loaded.value && playback.value.currentSequence > 0)
 const canStepForward = computed(() => loaded.value && playback.value.currentSequence < maxSequence.value)
 const canReset = computed(() => loaded.value)
+
+async function refreshLiveSnapshot() {
+  liveLoading.value = true
+  try {
+    liveSnapshot.value = await api.getStationSnapshot()
+  } catch (error) {
+    ElMessage.error(error.message || '实时状态加载失败')
+  } finally {
+    liveLoading.value = false
+  }
+}
 
 async function loadScenario() {
   stopPlaybackTimer()
@@ -172,6 +208,16 @@ function stopPlaybackTimer() {
   playbackTimerId.value = null
   lastPlaybackTick.value = null
 }
+
+watch(runtimeMode, (mode) => {
+  if (mode === RUNTIME_MODES.LIVE && playback.value.status === 'playing') {
+    pause()
+  }
+})
+
+onMounted(() => {
+  refreshLiveSnapshot()
+})
 
 onBeforeUnmount(() => {
   stopPlaybackTimer()

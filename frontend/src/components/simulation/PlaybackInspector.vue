@@ -4,6 +4,7 @@
       <div>
         <p class="eyebrow">当前步骤</p>
         <h2>{{ command?.displayText || '等待加载' }}</h2>
+        <el-tag v-if="command" effect="plain">{{ command.sourceType || 'COURSE_SEQUENCE' }}</el-tag>
       </div>
       <el-tag v-if="command" effect="plain">{{ command.time }}</el-tag>
     </div>
@@ -12,6 +13,8 @@
       <el-descriptions-item label="命令">{{ command.type }}</el-descriptions-item>
       <el-descriptions-item label="对象">{{ command.targetId }}</el-descriptions-item>
       <el-descriptions-item label="来源">{{ command.sourceText }}</el-descriptions-item>
+      <el-descriptions-item label="事件来源">{{ command.sourceType || 'COURSE_SEQUENCE' }}</el-descriptions-item>
+      <el-descriptions-item label="提交状态">{{ command.commitState || 'PROVISIONAL' }}</el-descriptions-item>
     </el-descriptions>
     <el-empty v-else description="选择事件后显示规则说明" />
 

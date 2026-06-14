@@ -2,14 +2,14 @@
   <el-card shadow="never">
     <div class="scenario-loader">
       <div class="scenario-summary">
-        <p class="eyebrow">课程事件序列</p>
+        <p class="eyebrow">事件来源</p>
         <h2>{{ scenario?.name || '课程事件序列' }}</h2>
         <span>{{ timeRange }}</span>
       </div>
 
       <div class="scenario-metrics">
         <div>
-          <span>命令数量</span>
+          <span>事件数量</span>
           <strong>{{ commandCount }}</strong>
         </div>
         <div>

@@ -10,7 +10,7 @@
 
     <el-main>
       <el-tabs v-model="activeTab" class="main-tabs">
-        <el-tab-pane label="调度沙盘" name="simulation">
+        <el-tab-pane label="站点运行" name="simulation">
           <SimulationSandbox />
         </el-tab-pane>
         <el-tab-pane label="车主自助" name="owner">
