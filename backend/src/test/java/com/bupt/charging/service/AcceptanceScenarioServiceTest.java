@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.bupt.charging.dto.AcceptanceDtos;
+import com.bupt.charging.dto.ScenarioDtos;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -42,6 +43,42 @@ class AcceptanceScenarioServiceTest {
         AcceptanceDtos.AcceptanceEventRow modifyRow = rowAt(scenario.rows(), "09:25");
         assertTrue(modifyRow.waitingAreaText().contains("(V21,F,35.00)"));
         assertTrue(scenario.sampleChecks().stream().allMatch(AcceptanceDtos.AcceptanceSampleCheck::matched));
+    }
+
+    @Test
+    void courseSampleReplayExposesCommandsSnapshotsTransitionsAndLegacyRows() {
+        AcceptanceScenarioService service = new AcceptanceScenarioService();
+
+        var replay = service.runCourseSampleReplay();
+
+        assertEquals("course-sample", replay.scenario().id());
+        assertEquals("课程事件序列", replay.scenario().name());
+        assertEquals("06:00", replay.scenario().startTime());
+        assertEquals("09:30", replay.scenario().stopTime());
+
+        assertEquals(36, replay.commands().size());
+        assertEquals(37, replay.snapshots().size());
+        assertEquals(36, replay.transitions().size());
+        assertEquals(36, replay.tableRows().size());
+        assertTrue(replay.checks().stream().allMatch(ScenarioDtos.ScenarioCheck::passed));
+
+        var initial = replay.snapshots().get(0);
+        assertEquals(0, initial.sequence());
+        assertEquals("06:00", initial.time());
+        assertTrue(initial.station().waitingArea().isEmpty());
+
+        var firstCommand = replay.commands().get(0);
+        assertEquals(1, firstCommand.sequence());
+        assertEquals("06:00", firstCommand.time());
+        assertEquals("SubmitChargingRequest", firstCommand.type());
+        assertEquals("V1", firstCommand.targetId());
+        assertEquals("(A,V1,T,40)", firstCommand.sourceText());
+
+        var firstSnapshot = replay.snapshots().get(1);
+        assertEquals(1, firstSnapshot.sequence());
+        assertEquals("06:00", firstSnapshot.time());
+        assertEquals("V1", firstSnapshot.station().slowPiles().get(0).queue().get(0));
+        assertEquals("SLOW", firstSnapshot.vehicles().get("V1").mode());
     }
 
     private AcceptanceDtos.AcceptanceEventRow rowAt(List<AcceptanceDtos.AcceptanceEventRow> rows, String time) {

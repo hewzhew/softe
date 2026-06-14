@@ -78,4 +78,22 @@ class RestApiSmokeTest {
         assertEquals("06:00", data.path("rows").get(0).path("time").asText());
         assertTrue(data.path("sampleChecks").get(0).path("matched").asBoolean());
     }
+
+    @Test
+    void courseScenarioReplayEndpointReturnsPlaybackBundle() throws Exception {
+        ResponseEntity<String> response = restTemplate.postForEntity(
+                "/api/scenarios/course-sample/run",
+                null,
+                String.class
+        );
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        JsonNode data = objectMapper.readTree(response.getBody()).path("data");
+        assertEquals("course-sample", data.path("scenario").path("id").asText());
+        assertEquals(36, data.path("commands").size());
+        assertEquals(37, data.path("snapshots").size());
+        assertEquals(36, data.path("transitions").size());
+        assertEquals(36, data.path("tableRows").size());
+        assertTrue(data.path("checks").get(0).path("passed").asBoolean());
+    }
 }
