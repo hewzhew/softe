@@ -55,6 +55,14 @@ class AcceptanceScenarioServiceTest {
         assertEquals("课程事件序列", replay.scenario().name());
         assertEquals("06:00", replay.scenario().startTime());
         assertEquals("09:30", replay.scenario().stopTime());
+        assertEquals("SIMULATION", replay.session().mode());
+        assertEquals("06:00", replay.session().baseTime());
+        assertEquals("PRECOMPUTED", replay.session().materializationPolicy());
+        assertEquals("COURSE_SEQUENCE", replay.sourceSummary().primarySourceType());
+        assertEquals(36, replay.sourceSummary().eventCount());
+        assertEquals(37, replay.sourceSummary().snapshotCount());
+        assertEquals("COURSE_SEQUENCE", replay.commands().get(0).sourceType());
+        assertEquals("PROVISIONAL", replay.commands().get(0).commitState());
 
         assertEquals(36, replay.commands().size());
         assertEquals(37, replay.snapshots().size());

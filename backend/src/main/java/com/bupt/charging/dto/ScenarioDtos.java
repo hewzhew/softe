@@ -20,6 +20,27 @@ public final class ScenarioDtos {
     public record PileConfig(List<String> fast, List<String> slow) {
     }
 
+    public record TimeSession(
+            String id,
+            String mode,
+            String baseTime,
+            String cursorTime,
+            String windowStart,
+            String windowEnd,
+            String materializationPolicy,
+            String branchId
+    ) {
+    }
+
+    public record SourceSummary(
+            String primarySourceType,
+            String primarySourceName,
+            List<String> sourceTypes,
+            int eventCount,
+            int snapshotCount
+    ) {
+    }
+
     public record ScenarioCommand(
             long sequence,
             String time,
@@ -28,12 +49,41 @@ public final class ScenarioDtos {
             String mode,
             String amount,
             String sourceText,
-            String displayText
+            String displayText,
+            String sourceType,
+            String commitState,
+            String branchId
     ) {
+        public ScenarioCommand(
+                long sequence,
+                String time,
+                String type,
+                String targetId,
+                String mode,
+                String amount,
+                String sourceText,
+                String displayText
+        ) {
+            this(
+                    sequence,
+                    time,
+                    type,
+                    targetId,
+                    mode,
+                    amount,
+                    sourceText,
+                    displayText,
+                    "COURSE_SEQUENCE",
+                    "PROVISIONAL",
+                    null
+            );
+        }
     }
 
     public record ReplayBundle(
             ScenarioDefinition scenario,
+            TimeSession session,
+            SourceSummary sourceSummary,
             List<ScenarioCommand> commands,
             List<StationSnapshot> snapshots,
             List<ScenarioTransition> transitions,

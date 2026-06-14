@@ -7,12 +7,38 @@ public final class StationDtos {
     private StationDtos() {
     }
 
+    public record SourceSummary(
+            String primarySourceType,
+            String primarySourceName,
+            List<String> sourceTypes,
+            int eventCount,
+            int snapshotCount
+    ) {
+    }
+
     public record StationSnapshot(
             String time,
             StationState station,
             Map<String, VehicleState> vehicles,
-            Metrics metrics
+            Metrics metrics,
+            String sessionMode,
+            SourceSummary sourceSummary
     ) {
+        public StationSnapshot(
+                String time,
+                StationState station,
+                Map<String, VehicleState> vehicles,
+                Metrics metrics
+        ) {
+            this(
+                    time,
+                    station,
+                    vehicles,
+                    metrics,
+                    "LIVE",
+                    new SourceSummary("LIVE_MANUAL", "当前站点", List.of("LIVE_MANUAL"), 0, 1)
+            );
+        }
     }
 
     public record StationState(

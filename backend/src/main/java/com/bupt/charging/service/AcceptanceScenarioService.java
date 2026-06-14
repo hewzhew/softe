@@ -108,12 +108,31 @@ public class AcceptanceScenarioService {
             transitions.add(transitionFrom(before, after, event, notes));
         }
 
+        ScenarioDtos.ScenarioDefinition scenario = scenarioDefinition();
+        List<ScenarioDtos.ScenarioCheck> checks = replayChecks(sampleChecks(rows));
         return new ScenarioDtos.ReplayBundle(
-                scenarioDefinition(),
+                scenario,
+                new ScenarioDtos.TimeSession(
+                        "course-sample-session",
+                        "SIMULATION",
+                        scenario.startTime(),
+                        scenario.startTime(),
+                        scenario.startTime(),
+                        scenario.stopTime(),
+                        "PRECOMPUTED",
+                        null
+                ),
+                new ScenarioDtos.SourceSummary(
+                        "COURSE_SEQUENCE",
+                        "课程事件序列",
+                        List.of("COURSE_SEQUENCE", "SYSTEM_DERIVED"),
+                        commands.size(),
+                        snapshots.size()
+                ),
                 commands,
                 snapshots,
                 transitions,
-                replayChecks(sampleChecks(rows)),
+                checks,
                 rows
         );
     }

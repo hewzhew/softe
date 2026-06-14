@@ -71,7 +71,15 @@ public class StationSnapshotService {
                 LocalDateTime.now().format(TIME_FORMAT),
                 new StationDtos.StationState(waitingArea, fastPiles, slowPiles),
                 vehicles,
-                new StationDtos.Metrics(waitingArea.size(), pileQueueCount, faultPileCount, activePileCount)
+                new StationDtos.Metrics(waitingArea.size(), pileQueueCount, faultPileCount, activePileCount),
+                "LIVE",
+                new StationDtos.SourceSummary(
+                        "LIVE_MANUAL",
+                        "当前站点",
+                        List.of("LIVE_MANUAL", "SYSTEM_DERIVED"),
+                        waitingArea.size() + pileQueueCount,
+                        1
+                )
         );
     }
 

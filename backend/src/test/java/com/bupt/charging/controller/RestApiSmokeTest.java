@@ -89,6 +89,11 @@ class RestApiSmokeTest {
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         JsonNode data = objectMapper.readTree(response.getBody()).path("data");
+        assertEquals("SIMULATION", data.path("session").path("mode").asText());
+        assertEquals("COURSE_SEQUENCE", data.path("sourceSummary").path("primarySourceType").asText());
+        assertEquals("PRECOMPUTED", data.path("session").path("materializationPolicy").asText());
+        assertEquals("COURSE_SEQUENCE", data.path("commands").get(0).path("sourceType").asText());
+        assertEquals("PROVISIONAL", data.path("commands").get(0).path("commitState").asText());
         assertEquals("course-sample", data.path("scenario").path("id").asText());
         assertEquals(36, data.path("commands").size());
         assertEquals(37, data.path("snapshots").size());
@@ -108,6 +113,8 @@ class RestApiSmokeTest {
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         JsonNode data = objectMapper.readTree(response.getBody()).path("data");
+        assertEquals("LIVE", data.path("sessionMode").asText());
+        assertEquals("LIVE_MANUAL", data.path("sourceSummary").path("primarySourceType").asText());
         assertTrue(data.path("station").path("waitingArea").size() > 0);
         assertTrue(data.path("station").has("fastPiles"));
         assertTrue(data.path("station").has("slowPiles"));
