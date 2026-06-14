@@ -32,6 +32,6 @@ const modeOptions = [
 const description = computed(() => (
   props.modelValue === RUNTIME_MODES.SIMULATION
     ? '使用课程事件序列或临时分支观察非当前时刻的站点状态'
-    : '跟随当前业务数据，一秒一秒观察站点运行'
+    : '读取当前业务快照，手动刷新即可查看最新站点状态'
 ))
 </script>

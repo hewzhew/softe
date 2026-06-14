@@ -6,6 +6,8 @@
       v-if="runtimeMode === RUNTIME_MODES.LIVE"
       :snapshot="liveSnapshot"
       :loading="liveLoading"
+      :error="liveError"
+      :updated-at="liveUpdatedAt"
       @refresh="refreshLiveSnapshot"
     />
 
@@ -100,6 +102,8 @@ const loading = ref(false)
 const runtimeMode = ref(RUNTIME_MODES.LIVE)
 const liveLoading = ref(false)
 const liveSnapshot = ref(null)
+const liveError = ref('')
+const liveUpdatedAt = ref('')
 const playback = ref(createPlaybackState())
 const playbackTimerId = ref(null)
 const lastPlaybackTick = ref(null)
@@ -124,11 +128,18 @@ const canStepForward = computed(() => loaded.value && playback.value.currentSequ
 const canReset = computed(() => loaded.value)
 
 async function refreshLiveSnapshot() {
+  liveError.value = ''
   liveLoading.value = true
   try {
-    liveSnapshot.value = await api.getStationSnapshot()
+    const snapshot = await api.getStationSnapshot()
+    liveSnapshot.value = snapshot
+    liveUpdatedAt.value = snapshot?.time || new Date().toLocaleTimeString('zh-CN', { hour12: false })
   } catch (error) {
-    ElMessage.error(error.message || '实时状态加载失败')
+    const message = error.message || '实时状态加载失败'
+    liveError.value = message
+    liveSnapshot.value = null
+    liveUpdatedAt.value = ''
+    ElMessage.error(message)
   } finally {
     liveLoading.value = false
   }
@@ -210,9 +221,14 @@ function stopPlaybackTimer() {
 }
 
 watch(runtimeMode, (mode) => {
-  if (mode === RUNTIME_MODES.LIVE && playback.value.status === 'playing') {
+  if (mode !== RUNTIME_MODES.LIVE) {
+    return
+  }
+
+  if (playback.value.status === 'playing') {
     pause()
   }
+  refreshLiveSnapshot()
 })
 
 onMounted(() => {

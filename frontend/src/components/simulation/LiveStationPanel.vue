@@ -5,26 +5,36 @@
         <div>
           <p class="eyebrow">实时站点</p>
           <h2>当前业务状态</h2>
+          <span v-if="updatedAt" class="runtime-status">更新于 {{ updatedAt }}</span>
         </div>
         <el-button type="primary" :loading="loading" @click="$emit('refresh')">刷新</el-button>
       </div>
 
+      <el-alert
+        v-if="error"
+        class="runtime-alert"
+        type="error"
+        :title="error"
+        show-icon
+        :closable="false"
+      />
+
       <div class="runtime-metrics">
         <div>
           <span>等候车辆</span>
-          <strong>{{ snapshot?.metrics?.waitingCount ?? 0 }}</strong>
+          <strong>{{ metricValue('waitingCount') }}</strong>
         </div>
         <div>
           <span>桩内队列</span>
-          <strong>{{ snapshot?.metrics?.pileQueueCount ?? 0 }}</strong>
+          <strong>{{ metricValue('pileQueueCount') }}</strong>
         </div>
         <div>
           <span>故障桩</span>
-          <strong>{{ snapshot?.metrics?.faultPileCount ?? 0 }}</strong>
+          <strong>{{ metricValue('faultPileCount') }}</strong>
         </div>
         <div>
           <span>可服务桩</span>
-          <strong>{{ snapshot?.metrics?.activePileCount ?? 0 }}</strong>
+          <strong>{{ metricValue('activePileCount') }}</strong>
         </div>
       </div>
     </el-card>
@@ -36,10 +46,33 @@
 <script setup>
 import StationMap from './StationMap.vue'
 
-defineProps({
+const props = defineProps({
   snapshot: { type: Object, default: null },
-  loading: { type: Boolean, default: false }
+  loading: { type: Boolean, default: false },
+  error: { type: String, default: '' },
+  updatedAt: { type: String, default: '' }
 })
 
 defineEmits(['refresh'])
+
+function metricValue(key) {
+  if (!props.snapshot) {
+    return '--'
+  }
+
+  return props.snapshot.metrics?.[key] ?? 0
+}
 </script>
+
+<style scoped>
+.runtime-status {
+  display: block;
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.runtime-alert {
+  margin-bottom: 12px;
+}
+</style>
