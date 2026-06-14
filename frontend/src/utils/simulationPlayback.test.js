@@ -11,7 +11,8 @@ import {
   seekToSequence,
   setPlaybackSpeed,
   stepBackward,
-  stepForward
+  stepForward,
+  visibleTimelineCommands
 } from './simulationPlayback.js'
 
 const bundle = {
@@ -205,5 +206,25 @@ describe('simulation playback helpers', () => {
     assert.equal(state.currentSequence, 3)
     assert.equal(state.currentCommand.displayText, 'V3 提交快充请求')
     assert.equal(state.status, 'completed')
+  })
+
+  it('returns a bounded timeline window around the current sequence', () => {
+    const commands = Array.from({ length: 30 }, (_, index) => ({
+      sequence: index + 1,
+      time: `06:${String(index).padStart(2, '0')}`,
+      displayText: `event-${index + 1}`
+    }))
+
+    const windowed = visibleTimelineCommands(commands, 15, 9)
+
+    assert.equal(windowed.length, 9)
+    assert.equal(windowed[0].sequence, 11)
+    assert.equal(windowed[8].sequence, 19)
+  })
+
+  it('keeps the full timeline when command count is below the window size', () => {
+    const commands = [{ sequence: 1 }, { sequence: 2 }]
+
+    assert.deepEqual(visibleTimelineCommands(commands, 1, 9), commands)
   })
 })

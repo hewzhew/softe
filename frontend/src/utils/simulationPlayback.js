@@ -112,6 +112,29 @@ export function scalePlaybackElapsedMs(elapsedMs, scale = 60) {
   return elapsedMs * scale
 }
 
+export function visibleTimelineCommands(commands, currentSequence, windowSize = 18) {
+  if (!Array.isArray(commands) || commands.length === 0) {
+    return []
+  }
+
+  const size = Number.isFinite(windowSize) && windowSize > 0
+    ? Math.trunc(windowSize)
+    : 18
+
+  if (commands.length <= size) {
+    return commands
+  }
+
+  const currentIndex = Math.max(
+    0,
+    commands.findIndex((command) => command.sequence === currentSequence)
+  )
+  const half = Math.floor(size / 2)
+  const start = Math.max(0, Math.min(currentIndex - half, commands.length - size))
+
+  return commands.slice(start, start + size)
+}
+
 export function advancePlaybackByMs(state, elapsedMs) {
   if (state.status !== 'playing' || !state.bundle || !Number.isFinite(elapsedMs) || elapsedMs <= 0) {
     return state

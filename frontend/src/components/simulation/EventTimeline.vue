@@ -8,9 +8,13 @@
       <el-tag effect="plain">{{ currentSequence }} / {{ commands.length }}</el-tag>
     </div>
 
+    <p v-if="commands.length > visibleCommands.length" class="timeline-window-note">
+      当前显示 {{ visibleCommands.length }} / {{ commands.length }} 个事件，播放时自动跟随当前位置
+    </p>
+
     <div class="event-timeline">
       <button
-        v-for="command in commands"
+        v-for="command in visibleCommands"
         :key="command.sequence"
         type="button"
         class="timeline-point"
@@ -25,10 +29,20 @@
 </template>
 
 <script setup>
-defineProps({
+import { computed } from 'vue'
+import { visibleTimelineCommands } from '../../utils/simulationPlayback'
+
+const props = defineProps({
   commands: { type: Array, default: () => [] },
-  currentSequence: { type: Number, default: 0 }
+  currentSequence: { type: Number, default: 0 },
+  windowSize: { type: Number, default: 18 }
 })
 
 defineEmits(['seek'])
+
+const visibleCommands = computed(() => visibleTimelineCommands(
+  props.commands,
+  props.currentSequence,
+  props.windowSize
+))
 </script>

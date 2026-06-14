@@ -341,6 +341,12 @@ body {
   padding-bottom: 4px;
 }
 
+.timeline-window-note {
+  margin: -4px 0 10px;
+  color: #64748b;
+  font-size: 12px;
+}
+
 .timeline-point {
   flex: 0 0 auto;
   min-width: 86px;
