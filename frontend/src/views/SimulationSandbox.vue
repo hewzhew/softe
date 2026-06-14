@@ -78,6 +78,7 @@ import {
 const loading = ref(false)
 const playback = ref(createPlaybackState())
 const playbackTimerId = ref(null)
+const lastPlaybackTick = ref(null)
 
 const bundle = computed(() => playback.value.bundle)
 const scenario = computed(() => bundle.value?.scenario || null)
@@ -149,8 +150,12 @@ function startPlaybackTimer() {
     return
   }
 
+  lastPlaybackTick.value = performance.now()
   playbackTimerId.value = window.setInterval(() => {
-    playback.value = advancePlaybackByMs(playback.value, 1000)
+    const now = performance.now()
+    const elapsedMs = now - lastPlaybackTick.value
+    lastPlaybackTick.value = now
+    playback.value = advancePlaybackByMs(playback.value, elapsedMs)
     if (playback.value.status === 'completed') {
       stopPlaybackTimer()
     }
@@ -164,6 +169,7 @@ function stopPlaybackTimer() {
 
   window.clearInterval(playbackTimerId.value)
   playbackTimerId.value = null
+  lastPlaybackTick.value = null
 }
 
 onBeforeUnmount(() => {

@@ -117,7 +117,7 @@ export function advancePlaybackByMs(state, elapsedMs) {
   }
 
   const stopMinute = parseTimeToMinutes(state.bundle?.scenario?.stopTime)
-  const targetMinute = clampMinute(currentMinute + (elapsedMs / 1000) * speed, stopMinute)
+  const targetMinute = clampMinute(currentMinute + (elapsedMs / 60_000) * speed, stopMinute)
   const targetSequence = sequenceAtOrBeforeTime(state.bundle, targetMinute, state.currentSequence)
 
   return derive({
