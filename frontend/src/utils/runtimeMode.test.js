@@ -34,5 +34,9 @@ describe('runtime mode helpers', () => {
     assert.equal(formatSourceSummary(null), '未选择事件来源')
     assert.equal(formatSourceSummary({ primarySourceName: '课程事件序列' }), '课程事件序列')
     assert.equal(formatSourceSummary({ primarySourceType: 'LIVE_MANUAL' }), 'LIVE_MANUAL')
+    assert.equal(
+      formatSourceSummary({ primarySourceName: '课程事件序列', primarySourceType: 'COURSE_SEQUENCE' }),
+      '课程事件序列'
+    )
   })
 })
