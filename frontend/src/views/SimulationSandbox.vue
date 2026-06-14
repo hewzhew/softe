@@ -52,7 +52,7 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { api } from '../api/chargingApi'
 import EventTimeline from '../components/simulation/EventTimeline.vue'
@@ -63,6 +63,7 @@ import SimulationClockBar from '../components/simulation/SimulationClockBar.vue'
 import StationMap from '../components/simulation/StationMap.vue'
 import { flattenScenarioRows } from '../utils/acceptanceDisplay'
 import {
+  advancePlaybackByMs,
   createPlaybackState,
   loadReplayBundle,
   pausePlayback,
@@ -76,6 +77,7 @@ import {
 
 const loading = ref(false)
 const playback = ref(createPlaybackState())
+const playbackTimerId = ref(null)
 
 const bundle = computed(() => playback.value.bundle)
 const scenario = computed(() => bundle.value?.scenario || null)
@@ -95,6 +97,7 @@ const canStepForward = computed(() => loaded.value && playback.value.currentSequ
 const canReset = computed(() => loaded.value)
 
 async function loadScenario() {
+  stopPlaybackTimer()
   loading.value = true
   try {
     const result = await api.runCourseScenario()
@@ -109,31 +112,63 @@ async function loadScenario() {
 
 function play() {
   playback.value = playPlayback(playback.value)
+  startPlaybackTimer()
 }
 
 function pause() {
+  stopPlaybackTimer()
   playback.value = pausePlayback(playback.value)
 }
 
 function stepBack() {
+  stopPlaybackTimer()
   playback.value = stepBackward(playback.value)
 }
 
 function stepForwardAction() {
+  stopPlaybackTimer()
   playback.value = stepForward(playback.value)
 }
 
 function reset() {
+  stopPlaybackTimer()
   playback.value = resetPlayback(playback.value)
 }
 
 function seek(sequence) {
+  stopPlaybackTimer()
   playback.value = seekToSequence(playback.value, sequence)
 }
 
 function setSpeed(speed) {
   playback.value = setPlaybackSpeed(playback.value, speed)
 }
+
+function startPlaybackTimer() {
+  if (playback.value.status !== 'playing' || playbackTimerId.value !== null) {
+    return
+  }
+
+  playbackTimerId.value = window.setInterval(() => {
+    playback.value = advancePlaybackByMs(playback.value, 1000)
+    if (playback.value.status === 'completed') {
+      stopPlaybackTimer()
+    }
+  }, 1000)
+}
+
+function stopPlaybackTimer() {
+  if (playbackTimerId.value === null) {
+    return
+  }
+
+  window.clearInterval(playbackTimerId.value)
+  playbackTimerId.value = null
+}
+
+onBeforeUnmount(() => {
+  stopPlaybackTimer()
+})
 
 async function copyRows() {
   const rows = flattenScenarioRows(bundle.value?.tableRows || [])

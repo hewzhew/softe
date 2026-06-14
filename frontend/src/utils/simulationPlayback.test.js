@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  advancePlaybackByMs,
   createPlaybackState,
   loadReplayBundle,
   pausePlayback,
@@ -26,6 +27,28 @@ const bundle = {
   transitions: [
     { fromSequence: 0, toSequence: 1, changes: [] },
     { fromSequence: 1, toSequence: 2, changes: [] }
+  ],
+  checks: [],
+  tableRows: []
+}
+
+const timedBundle = {
+  scenario: { startTime: '06:00', stopTime: '06:10', name: 'Timed playback' },
+  commands: [
+    { sequence: 1, time: '06:02', displayText: 'V1 提交慢充请求' },
+    { sequence: 2, time: '06:05', displayText: 'V2 提交慢充请求' },
+    { sequence: 3, time: '06:09', displayText: 'V3 提交快充请求' }
+  ],
+  snapshots: [
+    { sequence: 0, time: '06:00', station: { waitingArea: [], fastPiles: [], slowPiles: [] }, vehicles: {} },
+    { sequence: 1, time: '06:02', station: { waitingArea: [], fastPiles: [], slowPiles: [] }, vehicles: { V1: { id: 'V1' } } },
+    { sequence: 2, time: '06:05', station: { waitingArea: [], fastPiles: [], slowPiles: [] }, vehicles: { V1: { id: 'V1' }, V2: { id: 'V2' } } },
+    { sequence: 3, time: '06:09', station: { waitingArea: [], fastPiles: [], slowPiles: [] }, vehicles: { V1: { id: 'V1' }, V2: { id: 'V2' }, V3: { id: 'V3' } } }
+  ],
+  transitions: [
+    { fromSequence: 0, toSequence: 1, changes: [] },
+    { fromSequence: 1, toSequence: 2, changes: [] },
+    { fromSequence: 2, toSequence: 3, changes: [] }
   ],
   checks: [],
   tableRows: []
@@ -98,5 +121,43 @@ describe('simulation playback helpers', () => {
     const state = setPlaybackSpeed(loadReplayBundle(createPlaybackState(), bundle), 3)
 
     assert.equal(state.speed, 1)
+  })
+
+  it('advances playing playback by elapsed milliseconds and speed', () => {
+    let state = playPlayback(loadReplayBundle(createPlaybackState(), timedBundle))
+
+    state = advancePlaybackByMs(state, 1000)
+    assert.equal(state.currentTime, '06:01')
+    assert.equal(state.currentSequence, 0)
+    assert.equal(state.status, 'playing')
+
+    state = advancePlaybackByMs(setPlaybackSpeed(state, 2), 2000)
+    assert.equal(state.currentTime, '06:05')
+    assert.equal(state.currentSequence, 2)
+    assert.equal(state.currentCommand.displayText, 'V2 提交慢充请求')
+    assert.equal(state.status, 'playing')
+  })
+
+  it('does not advance non-playing playback null bundles or invalid elapsed values', () => {
+    const loaded = loadReplayBundle(createPlaybackState(), timedBundle)
+
+    assert.deepEqual(advancePlaybackByMs(loaded, 1000), loaded)
+    assert.deepEqual(advancePlaybackByMs(playPlayback(createPlaybackState()), 1000), createPlaybackState())
+
+    const playing = playPlayback(loaded)
+    assert.deepEqual(advancePlaybackByMs(playing, Number.NaN), playing)
+    assert.deepEqual(advancePlaybackByMs(playing, -1000), playing)
+  })
+
+  it('skips across multiple commands and completes at the final command', () => {
+    let state = playPlayback(loadReplayBundle(createPlaybackState(), timedBundle))
+    state = setPlaybackSpeed(state, 5)
+
+    state = advancePlaybackByMs(state, 2000)
+
+    assert.equal(state.currentTime, '06:10')
+    assert.equal(state.currentSequence, 3)
+    assert.equal(state.currentCommand.displayText, 'V3 提交快充请求')
+    assert.equal(state.status, 'completed')
   })
 })

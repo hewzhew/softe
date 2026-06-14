@@ -6,6 +6,7 @@ export function createPlaybackState() {
     bundle: null,
     currentSequence: 0,
     currentTime: '',
+    currentMinute: null,
     speed: 1,
     currentSnapshot: null,
     currentCommand: null,
@@ -27,6 +28,7 @@ export function loadReplayBundle(state, bundle) {
     bundle,
     currentSequence: normalizeSequence(initialSnapshot?.sequence ?? 0, maxSequence),
     currentTime: initialSnapshot?.time || bundle?.scenario?.startTime || '',
+    currentMinute: parseTimeToMinutes(initialSnapshot?.time || bundle?.scenario?.startTime),
     speed: 1
   })
 }
@@ -56,7 +58,9 @@ export function stepForward(state) {
   const currentSequence = normalizeSequence(state.currentSequence, maxSequence)
   return derive({
     ...state,
-    currentSequence: normalizeSequence(currentSequence + 1, maxSequence)
+    currentSequence: normalizeSequence(currentSequence + 1, maxSequence),
+    currentTime: '',
+    currentMinute: null
   })
 }
 
@@ -70,6 +74,8 @@ export function stepBackward(state) {
   return derive({
     ...state,
     currentSequence: normalizeSequence(currentSequence - 1, maxSequence),
+    currentTime: '',
+    currentMinute: null,
     status: 'paused'
   })
 }
@@ -82,7 +88,9 @@ export function seekToSequence(state, sequence) {
   const maxSequence = maxSnapshotSequence(state.bundle)
   return derive({
     ...state,
-    currentSequence: normalizeSequence(sequence, maxSequence, state.currentSequence)
+    currentSequence: normalizeSequence(sequence, maxSequence, state.currentSequence),
+    currentTime: '',
+    currentMinute: null
   })
 }
 
@@ -92,6 +100,32 @@ export function setPlaybackSpeed(state, speed) {
   }
 
   return { ...state, speed }
+}
+
+export function advancePlaybackByMs(state, elapsedMs) {
+  if (state.status !== 'playing' || !state.bundle || !Number.isFinite(elapsedMs) || elapsedMs <= 0) {
+    return state
+  }
+
+  const speed = Number.isFinite(state.speed) && state.speed > 0 ? state.speed : 1
+  const currentMinute = Number.isFinite(state.currentMinute)
+    ? state.currentMinute
+    : parseTimeToMinutes(state.currentTime || state.currentSnapshot?.time || state.bundle?.scenario?.startTime)
+
+  if (!Number.isFinite(currentMinute)) {
+    return state
+  }
+
+  const stopMinute = parseTimeToMinutes(state.bundle?.scenario?.stopTime)
+  const targetMinute = clampMinute(currentMinute + (elapsedMs / 1000) * speed, stopMinute)
+  const targetSequence = sequenceAtOrBeforeTime(state.bundle, targetMinute, state.currentSequence)
+
+  return derive({
+    ...state,
+    currentSequence: targetSequence,
+    currentMinute: targetMinute,
+    currentTime: formatMinutesAsTime(targetMinute)
+  })
 }
 
 export function resetPlayback(state) {
@@ -119,7 +153,10 @@ function derive(state) {
     currentSnapshot,
     currentCommand,
     currentTransition,
-    currentTime: currentSnapshot?.time || state.currentTime
+    currentTime: state.currentTime || currentSnapshot?.time || '',
+    currentMinute: Number.isFinite(state.currentMinute)
+      ? state.currentMinute
+      : parseTimeToMinutes(currentSnapshot?.time || state.currentTime)
   }
 }
 
@@ -158,4 +195,58 @@ function maxSnapshotSequence(bundle) {
     .filter(Number.isFinite)
 
   return Math.max(0, ...sequences)
+}
+
+function sequenceAtOrBeforeTime(bundle, targetMinute, fallbackSequence) {
+  const commands = (bundle?.commands || [])
+    .map((command) => ({
+      sequence: command.sequence,
+      minute: parseTimeToMinutes(command.time)
+    }))
+    .filter((command) => Number.isFinite(command.sequence) && Number.isFinite(command.minute))
+    .sort((a, b) => a.minute - b.minute || a.sequence - b.sequence)
+
+  let sequence = normalizeSequence(fallbackSequence, maxSnapshotSequence(bundle))
+  for (const command of commands) {
+    if (command.minute <= targetMinute) {
+      sequence = command.sequence
+    }
+  }
+
+  return sequence
+}
+
+function clampMinute(minute, stopMinute) {
+  if (Number.isFinite(stopMinute)) {
+    return Math.min(minute, stopMinute)
+  }
+
+  return minute
+}
+
+function parseTimeToMinutes(time) {
+  if (typeof time !== 'string') {
+    return null
+  }
+
+  const match = /^(\d{1,2}):(\d{2})$/.exec(time.trim())
+  if (!match) {
+    return null
+  }
+
+  const hours = Number(match[1])
+  const minutes = Number(match[2])
+  if (!Number.isInteger(hours) || !Number.isInteger(minutes) || minutes < 0 || minutes > 59) {
+    return null
+  }
+
+  return hours * 60 + minutes
+}
+
+function formatMinutesAsTime(minute) {
+  const totalMinutes = Math.max(0, Math.floor(minute))
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
 }
