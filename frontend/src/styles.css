@@ -349,7 +349,7 @@ body {
   gap: 10px;
 }
 
-.runtime-metrics div {
+.runtime-metrics > div {
   min-height: 68px;
   padding: 12px;
   border: 1px solid #e4eaf1;

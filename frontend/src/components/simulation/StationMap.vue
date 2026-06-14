@@ -10,7 +10,7 @@
       </el-tag>
     </div>
 
-    <div v-if="!snapshot" class="sandbox-empty">加载课程事件序列后显示站点状态</div>
+    <div v-if="!snapshot" class="sandbox-empty">{{ emptyText }}</div>
     <div v-else class="station-map">
       <section class="waiting-area">
         <h3>等候区</h3>
@@ -57,6 +57,11 @@ const props = defineProps({
   mode: { type: String, default: 'SIMULATION' }
 })
 
+const emptyText = computed(() => (
+  props.mode === 'LIVE'
+    ? '正在读取实时站点状态'
+    : '加载课程事件序列后显示站点状态'
+))
 const station = computed(() => props.snapshot?.station || {})
 const vehicles = computed(() => props.snapshot?.vehicles || {})
 const waitingArea = computed(() => station.value.waitingArea || [])
