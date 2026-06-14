@@ -26,6 +26,8 @@
       @speed="setSpeed"
     />
 
+    <StationMap :snapshot="playback.currentSnapshot" />
+
     <el-card class="sandbox-overview" shadow="never">
       <el-empty v-if="!loaded" description="加载后显示 06:00 到 09:30 的运行回放" />
       <template v-else>
@@ -62,6 +64,7 @@ import { ElMessage } from 'element-plus'
 import { api } from '../api/chargingApi'
 import ScenarioLoader from '../components/simulation/ScenarioLoader.vue'
 import SimulationClockBar from '../components/simulation/SimulationClockBar.vue'
+import StationMap from '../components/simulation/StationMap.vue'
 import { flattenScenarioRows } from '../utils/acceptanceDisplay'
 import {
   createPlaybackState,

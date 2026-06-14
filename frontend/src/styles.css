@@ -289,6 +289,150 @@ body {
   color: #667085;
 }
 
+.simulation-clock-bar,
+.scenario-loader,
+.station-map-card {
+  border-radius: 6px;
+}
+
+.simulation-clock-bar {
+  border: 1px solid #dbe3ec;
+  background: #fff;
+}
+
+.scenario-loader {
+  min-width: 0;
+}
+
+.scenario-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.station-map-card {
+  border: 1px solid #dbe3ec;
+}
+
+.station-map {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.8fr) minmax(260px, 1fr) minmax(320px, 1.2fr);
+  gap: 16px;
+  align-items: stretch;
+}
+
+.waiting-area,
+.pile-area {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #e4eaf1;
+  border-radius: 6px;
+  background: #f8fafc;
+}
+
+.waiting-area h3,
+.pile-area h3 {
+  margin: 0 0 12px;
+  color: #172033;
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.waiting-list,
+.pile-queue {
+  display: grid;
+  gap: 8px;
+}
+
+.pile-lane {
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid #dbe3ec;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.pile-lane + .pile-lane {
+  margin-top: 10px;
+}
+
+.pile-lane header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.pile-lane header strong,
+.pile-lane header span {
+  display: block;
+}
+
+.pile-lane header strong {
+  color: #172033;
+  font-size: 14px;
+}
+
+.pile-lane header span {
+  margin-top: 2px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.pile-lane.fault {
+  border-color: #fecaca;
+  background: #fff7f7;
+}
+
+.vehicle-token {
+  min-height: 54px;
+  padding: 9px 10px;
+  overflow: hidden;
+  border: 1px solid #dbe3ec;
+  border-left: 4px solid #64748b;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.vehicle-token strong,
+.vehicle-token span,
+.vehicle-token small {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.vehicle-token strong {
+  color: #172033;
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.vehicle-token span,
+.vehicle-token small {
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.vehicle-fast {
+  border-left-color: #409eff;
+}
+
+.vehicle-slow {
+  border-left-color: #67c23a;
+}
+
+.empty-slot,
+.sandbox-empty {
+  padding: 14px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 6px;
+  color: #64748b;
+  text-align: center;
+}
+
 @media (max-width: 1180px) {
   .panel-grid,
   .owner-layout,
@@ -304,5 +448,31 @@ body {
   .kpi-strip,
   .flow-list.horizontal {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1100px) {
+  .station-map {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .el-main {
+    padding: 14px;
+  }
+
+  .card-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .kpi-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .pile-lane header {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
