@@ -60,7 +60,8 @@ export function stepForward(state) {
     ...state,
     currentSequence: normalizeSequence(currentSequence + 1, maxSequence),
     currentTime: '',
-    currentMinute: null
+    currentMinute: null,
+    status: 'paused'
   })
 }
 
@@ -90,7 +91,8 @@ export function seekToSequence(state, sequence) {
     ...state,
     currentSequence: normalizeSequence(sequence, maxSequence, state.currentSequence),
     currentTime: '',
-    currentMinute: null
+    currentMinute: null,
+    status: 'paused'
   })
 }
 

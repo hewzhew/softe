@@ -31,7 +31,7 @@
         </div>
         <el-button :icon="Refresh" circle title="刷新" @click="refresh" />
       </div>
-      <el-table :data="piles" height="360" border empty-text="暂无充电桩，请先在调度控制台应用参数">
+      <el-table :data="piles" height="360" border empty-text="当前暂无充电桩数据">
         <el-table-column prop="pileId" label="编号" width="90" />
         <el-table-column label="类型" width="90">
           <template #default="{ row }">{{ modeLabel(row.mode) }}</template>

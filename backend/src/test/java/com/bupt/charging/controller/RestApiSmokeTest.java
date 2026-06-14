@@ -161,4 +161,24 @@ class RestApiSmokeTest {
         }
         assertTrue(chargingVehicleInPileQueue);
     }
+
+    @Test
+    void stationSnapshotActivePileCountExcludesFaultPiles() throws Exception {
+        ResponseEntity<String> seedResponse = restTemplate.postForEntity("/api/demo/seed", null, String.class);
+        assertEquals(HttpStatus.OK, seedResponse.getStatusCode());
+
+        ResponseEntity<String> faultResponse = restTemplate.postForEntity(
+                "/api/faults",
+                Map.of("pileId", "F-1", "strategy", "PRIORITY"),
+                String.class
+        );
+        assertEquals(HttpStatus.OK, faultResponse.getStatusCode());
+
+        ResponseEntity<String> response = restTemplate.getForEntity("/api/station/snapshot", String.class);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        JsonNode metrics = objectMapper.readTree(response.getBody()).path("data").path("metrics");
+        assertEquals(1, metrics.path("faultPileCount").asInt());
+        assertEquals(4, metrics.path("activePileCount").asInt());
+    }
 }

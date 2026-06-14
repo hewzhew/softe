@@ -101,6 +101,28 @@ describe('simulation playback helpers', () => {
     assert.equal(state.currentSequence, 0)
   })
 
+  it('pauses playing playback when stepping forward manually before completion', () => {
+    const state = stepForward(playPlayback(loadReplayBundle(createPlaybackState(), timedBundle)))
+
+    assert.equal(state.currentSequence, 1)
+    assert.equal(state.status, 'paused')
+  })
+
+  it('completes playing playback when stepping forward manually to the final snapshot', () => {
+    const loadedAtPenultimateSnapshot = seekToSequence(loadReplayBundle(createPlaybackState(), timedBundle), 2)
+    const state = stepForward(playPlayback(loadedAtPenultimateSnapshot))
+
+    assert.equal(state.currentSequence, 3)
+    assert.equal(state.status, 'completed')
+  })
+
+  it('pauses playing playback when seeking manually before completion', () => {
+    const state = seekToSequence(playPlayback(loadReplayBundle(createPlaybackState(), timedBundle)), 2)
+
+    assert.equal(state.currentSequence, 2)
+    assert.equal(state.status, 'paused')
+  })
+
   it('normalizes fractional seek targets to valid snapshots', () => {
     const state = seekToSequence(loadReplayBundle(createPlaybackState(), bundle), 0.5)
 

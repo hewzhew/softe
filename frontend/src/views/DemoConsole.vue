@@ -31,7 +31,7 @@
         <div class="action-row">
           <el-button type="primary" @click="saveConfig">应用参数</el-button>
           <el-button type="primary" plain @click="seedDemo">导入排队请求</el-button>
-          <el-button type="success" @click="dispatch">执行调度</el-button>
+          <el-button type="success" @click="dispatch">分配队列</el-button>
           <el-button type="danger" plain @click="resetDemo">清空数据</el-button>
           <el-button :icon="Refresh" circle title="刷新" @click="refresh" />
         </div>
@@ -179,7 +179,7 @@ const faultPileCount = computed(() => piles.value.filter((pile) => pile.workingS
 const flowItems = [
   { step: 1, title: '应用站点参数', description: '配置充电桩数量、功率和队列容量' },
   { step: 2, title: '导入排队请求', description: '车辆请求进入等候区，尚未分配桩位' },
-  { step: 3, title: '执行调度', description: '系统按模式和预计完成时间分配充电桩' },
+  { step: 3, title: '分配队列', description: '系统按模式和预计完成时间分配充电桩' },
   { step: 4, title: '查看服务结果', description: '在车主自助或运营管理中查看状态变化' }
 ]
 const flowStep = computed(() => {

@@ -62,12 +62,16 @@ public class StationSnapshotService {
         int faultPileCount = (int) piles.stream()
                 .filter(pile -> pile.getStatus() == PileStatus.FAULT)
                 .count();
+        int activePileCount = (int) piles.stream()
+                .filter(pile -> pile.getStatus() != PileStatus.FAULT)
+                .filter(pile -> pile.getStatus() != PileStatus.OFFLINE)
+                .count();
 
         return new StationDtos.StationSnapshot(
                 LocalDateTime.now().format(TIME_FORMAT),
                 new StationDtos.StationState(waitingArea, fastPiles, slowPiles),
                 vehicles,
-                new StationDtos.Metrics(waitingArea.size(), pileQueueCount, faultPileCount, piles.size())
+                new StationDtos.Metrics(waitingArea.size(), pileQueueCount, faultPileCount, activePileCount)
         );
     }
 

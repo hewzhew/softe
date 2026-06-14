@@ -248,7 +248,7 @@ const startHint = computed(() => {
   if (carState.carState === 'CHARGING') {
     return '正在充电中'
   }
-  return '提交请求并执行调度后显示'
+  return '提交请求并进入队列后显示'
 })
 
 function clearOwnerState() {
