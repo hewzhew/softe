@@ -2,6 +2,7 @@ package com.bupt.charging.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.bupt.charging.domain.ChargeMode;
@@ -15,6 +16,7 @@ import com.bupt.charging.repository.ChargingPileRepository;
 import com.bupt.charging.repository.ChargingRequestRepository;
 import com.bupt.charging.repository.StationEventRepository;
 import com.bupt.charging.repository.VehicleRepository;
+import com.bupt.charging.support.BusinessException;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -148,5 +150,51 @@ class StationEventServiceTest {
                 .orElseThrow()
                 .getMode());
         assertTrue(eventRepository.findAll().stream().allMatch(StationEvent::isApplied));
+    }
+
+    @Test
+    void manualEventBeforeRuntimeCursorIsRejected() {
+        stationRuntimeService.advanceTo(LocalDateTime.of(2026, 6, 1, 6, 20));
+
+        assertThrows(BusinessException.class, () -> stationEventService.addManualChargeRequest(
+                manualEvent("MANUAL-BACKDATED", LocalDateTime.of(2026, 6, 1, 6, 10))));
+        assertEquals(0, eventRepository.count());
+    }
+
+    @Test
+    void courseImportWithoutResetAfterRuntimeCursorIsRejected() {
+        stationRuntimeService.advanceTo(LocalDateTime.of(2026, 6, 1, 6, 20));
+
+        assertThrows(BusinessException.class, () -> stationEventService.importCourseSample(false));
+        assertEquals(0, eventRepository.count());
+    }
+
+    @Test
+    void duplicateManualFutureSubmitEventForSameCarIsRejected() {
+        stationEventService.addManualChargeRequest(manualEvent("MANUAL-DUP", LocalDateTime.of(2026, 6, 1, 6, 30)));
+
+        assertThrows(BusinessException.class, () -> stationEventService.addManualChargeRequest(
+                manualEvent("MANUAL-DUP", LocalDateTime.of(2026, 6, 1, 6, 40))));
+        assertEquals(1, eventRepository.count());
+    }
+
+    @Test
+    void duplicateCourseImportWithoutResetIsRejected() {
+        stationEventService.importCourseSample(false);
+
+        assertThrows(BusinessException.class, () -> stationEventService.importCourseSample(false));
+        assertEquals(36, eventRepository.count());
+    }
+
+    private RuntimeDtos.ManualChargeRequestEvent manualEvent(String carId, LocalDateTime eventTime) {
+        return new RuntimeDtos.ManualChargeRequestEvent(
+                eventTime,
+                carId,
+                null,
+                0,
+                ChargeMode.FAST,
+                25.0,
+                null
+        );
     }
 }

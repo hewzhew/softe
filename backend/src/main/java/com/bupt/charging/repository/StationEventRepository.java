@@ -2,6 +2,8 @@ package com.bupt.charging.repository;
 
 import com.bupt.charging.domain.EventCommitState;
 import com.bupt.charging.domain.StationEvent;
+import com.bupt.charging.domain.StationEventSourceType;
+import com.bupt.charging.domain.StationEventType;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -19,4 +21,12 @@ public interface StationEventRepository extends JpaRepository<StationEvent, Long
 
     Optional<StationEvent> findFirstByAppliedFalseAndCommitStateOrderByEventTimeAscSequenceAsc(
             EventCommitState commitState);
+
+    boolean existsBySourceType(StationEventSourceType sourceType);
+
+    boolean existsByAppliedFalseAndCommitStateAndEventTypeAndTargetIdAndEventTimeGreaterThanEqual(
+            EventCommitState commitState,
+            StationEventType eventType,
+            String targetId,
+            LocalDateTime eventTime);
 }

@@ -2,10 +2,12 @@ package com.bupt.charging.service;
 
 import com.bupt.charging.domain.ChargeMode;
 import com.bupt.charging.domain.EventCommitState;
+import com.bupt.charging.domain.RequestStatus;
 import com.bupt.charging.domain.StationEvent;
 import com.bupt.charging.domain.StationEventSourceType;
 import com.bupt.charging.domain.StationEventType;
 import com.bupt.charging.dto.RuntimeDtos;
+import com.bupt.charging.repository.ChargingRequestRepository;
 import com.bupt.charging.repository.StationEventRepository;
 import com.bupt.charging.repository.VehicleRepository;
 import com.bupt.charging.support.BusinessException;
@@ -22,11 +24,17 @@ import org.springframework.transaction.annotation.Transactional;
 public class StationEventService {
     private static final LocalDate COURSE_DATE = LocalDate.of(2026, 6, 1);
     private static final String COURSE_SOURCE_NAME = "课程事件序列";
+    private static final List<RequestStatus> ACTIVE_REQUEST_STATUSES = List.of(
+            RequestStatus.WAITING_AREA,
+            RequestStatus.PILE_QUEUE,
+            RequestStatus.CHARGING
+    );
 
     private final StationEventRepository eventRepository;
     private final AcceptanceScenarioService acceptanceScenarioService;
     private final StationClockService stationClockService;
     private final AccountService accountService;
+    private final ChargingRequestRepository requestRepository;
     private final VehicleRepository vehicleRepository;
     private final ChargingService chargingService;
     private final FaultService faultService;
@@ -36,6 +44,7 @@ public class StationEventService {
             AcceptanceScenarioService acceptanceScenarioService,
             StationClockService stationClockService,
             AccountService accountService,
+            ChargingRequestRepository requestRepository,
             VehicleRepository vehicleRepository,
             ChargingService chargingService,
             FaultService faultService
@@ -44,6 +53,7 @@ public class StationEventService {
         this.acceptanceScenarioService = acceptanceScenarioService;
         this.stationClockService = stationClockService;
         this.accountService = accountService;
+        this.requestRepository = requestRepository;
         this.vehicleRepository = vehicleRepository;
         this.chargingService = chargingService;
         this.faultService = faultService;
@@ -53,12 +63,21 @@ public class StationEventService {
     public RuntimeDtos.ImportEventsResponse importCourseSample(boolean resetBeforeImport) {
         if (resetBeforeImport) {
             eventRepository.deleteAll();
+        } else if (eventRepository.existsBySourceType(StationEventSourceType.COURSE_PRESET)) {
+            throw new BusinessException("course preset events already imported; reset before importing again");
         }
         List<StationEvent> events = new ArrayList<>();
         long sequence = nextSequence();
         LocalDateTime receivedAt = stationClockService.currentStationTime();
         for (String raw : acceptanceScenarioService.courseSampleRawEvents()) {
             events.add(parseCourseEvent(raw, sequence++, receivedAt));
+        }
+        if (!resetBeforeImport) {
+            LocalDateTime runtimeCursor = stationClockService.runtimeCursorTime();
+            boolean hasBackdatedEvent = events.stream().anyMatch(event -> event.getEventTime().isBefore(runtimeCursor));
+            if (hasBackdatedEvent) {
+                throw new BusinessException("course event time is before runtime cursor");
+            }
         }
         List<StationEvent> saved = eventRepository.saveAll(events);
         return new RuntimeDtos.ImportEventsResponse(COURSE_SOURCE_NAME, saved.size(), saved.stream()
@@ -81,6 +100,11 @@ public class StationEventService {
         LocalDateTime eventTime = request.eventTime() == null
                 ? stationClockService.currentStationTime()
                 : request.eventTime();
+        LocalDateTime runtimeCursor = stationClockService.runtimeCursorTime();
+        if (eventTime.isBefore(runtimeCursor)) {
+            throw new BusinessException("event time is before runtime cursor");
+        }
+        rejectDuplicateSubmitEvent(carId, runtimeCursor);
         StationEvent event = eventRepository.save(new StationEvent(
                 eventTime,
                 stationClockService.currentStationTime(),
@@ -132,15 +156,29 @@ public class StationEventService {
     }
 
     private StationEvent parseCourseEvent(String raw, long sequence, LocalDateTime receivedAt) {
-        String[] parts = raw.split(" ", 2);
-        LocalDateTime eventTime = LocalDateTime.of(COURSE_DATE, LocalTime.parse(parts[0]));
-        String payload = parts[1];
+        String[] parts = raw == null ? new String[0] : raw.trim().split("\\s+", 2);
+        if (parts.length != 2) {
+            throw new BusinessException("malformed course event row: " + raw);
+        }
+        LocalDateTime eventTime = LocalDateTime.of(COURSE_DATE, LocalTime.parse(parts[0].trim()));
+        String payload = parts[1].trim();
+        if (!payload.startsWith("(") || !payload.endsWith(")")) {
+            throw new BusinessException("malformed course event payload: " + raw);
+        }
         String body = payload.substring(1, payload.length() - 1);
         String[] fields = body.split(",");
-        String source = fields[0];
-        String target = normalizeTargetId(fields[1]);
-        String operation = fields[2];
-        double amount = Double.parseDouble(fields[3]);
+        if (fields.length != 4) {
+            throw new BusinessException("malformed course event fields: " + raw);
+        }
+        String source = fields[0].trim();
+        String target = normalizeTargetId(fields[1].trim());
+        String operation = fields[2].trim();
+        double amount;
+        try {
+            amount = Double.parseDouble(fields[3].trim());
+        } catch (NumberFormatException ex) {
+            throw new BusinessException("malformed course event amount: " + raw);
+        }
         StationEventType eventType;
         ChargeMode mode = null;
         double capacity = 0.0;
@@ -203,6 +241,22 @@ public class StationEventService {
             capacity = event.getAmount();
         }
         accountService.createNewAccount(event.getTargetId(), textOrDefault(event.getOwnerName(), event.getTargetId()), capacity);
+    }
+
+    private void rejectDuplicateSubmitEvent(String carId, LocalDateTime runtimeCursor) {
+        boolean hasFutureSubmitEvent = eventRepository
+                .existsByAppliedFalseAndCommitStateAndEventTypeAndTargetIdAndEventTimeGreaterThanEqual(
+                        EventCommitState.COMMITTED,
+                        StationEventType.ChargeRequestSubmitted,
+                        carId,
+                        runtimeCursor);
+        if (hasFutureSubmitEvent) {
+            throw new BusinessException("car already has pending submit event");
+        }
+        requestRepository.findFirstByCarIdAndStatusInOrderByRequestTimeDesc(carId, ACTIVE_REQUEST_STATUSES)
+                .ifPresent(request -> {
+                    throw new BusinessException("car already has active request");
+                });
     }
 
     private RuntimeDtos.RuntimeEventRow toRow(StationEvent event) {
