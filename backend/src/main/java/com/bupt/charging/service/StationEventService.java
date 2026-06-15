@@ -14,6 +14,7 @@ import com.bupt.charging.support.BusinessException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -78,6 +79,7 @@ public class StationEventService {
             if (hasBackdatedEvent) {
                 throw new BusinessException("course event time is before runtime cursor");
             }
+            rejectCourseSubmitConflicts(events);
         }
         List<StationEvent> saved = eventRepository.saveAll(events);
         return new RuntimeDtos.ImportEventsResponse(COURSE_SOURCE_NAME, saved.size(), saved.stream()
@@ -160,7 +162,12 @@ public class StationEventService {
         if (parts.length != 2) {
             throw new BusinessException("malformed course event row: " + raw);
         }
-        LocalDateTime eventTime = LocalDateTime.of(COURSE_DATE, LocalTime.parse(parts[0].trim()));
+        LocalDateTime eventTime;
+        try {
+            eventTime = LocalDateTime.of(COURSE_DATE, LocalTime.parse(parts[0].trim()));
+        } catch (DateTimeParseException ex) {
+            throw new BusinessException("malformed course event time: " + raw);
+        }
         String payload = parts[1].trim();
         if (!payload.startsWith("(") || !payload.endsWith(")")) {
             throw new BusinessException("malformed course event payload: " + raw);
@@ -257,6 +264,30 @@ public class StationEventService {
                 .ifPresent(request -> {
                     throw new BusinessException("car already has active request");
                 });
+    }
+
+    private void rejectCourseSubmitConflicts(List<StationEvent> events) {
+        List<String> submitTargets = events.stream()
+                .filter(event -> event.getEventType() == StationEventType.ChargeRequestSubmitted)
+                .map(StationEvent::getTargetId)
+                .distinct()
+                .toList();
+        if (submitTargets.isEmpty()) {
+            return;
+        }
+        boolean hasPendingSubmitEvent = eventRepository.existsByAppliedFalseAndCommitStateAndEventTypeAndTargetIdIn(
+                EventCommitState.COMMITTED,
+                StationEventType.ChargeRequestSubmitted,
+                submitTargets);
+        if (hasPendingSubmitEvent) {
+            throw new BusinessException("course import conflicts with pending submit event");
+        }
+        for (String targetId : submitTargets) {
+            requestRepository.findFirstByCarIdAndStatusInOrderByRequestTimeDesc(targetId, ACTIVE_REQUEST_STATUSES)
+                    .ifPresent(request -> {
+                        throw new BusinessException("course import conflicts with active request");
+                    });
+        }
     }
 
     private RuntimeDtos.RuntimeEventRow toRow(StationEvent event) {

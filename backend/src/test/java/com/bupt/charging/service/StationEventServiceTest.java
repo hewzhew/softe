@@ -186,6 +186,21 @@ class StationEventServiceTest {
         assertEquals(36, eventRepository.count());
     }
 
+    @Test
+    void courseImportRejectsPendingManualSubmitForSameTarget() {
+        stationEventService.addManualChargeRequest(manualEvent("V1", LocalDateTime.of(2026, 6, 1, 6, 30)));
+
+        assertThrows(BusinessException.class, () -> stationEventService.importCourseSample(false));
+        assertEquals(1, eventRepository.count());
+
+        stationRuntimeService.advanceTo(LocalDateTime.of(2026, 6, 1, 6, 30));
+
+        assertTrue(eventRepository.findAll().stream().allMatch(StationEvent::isApplied));
+        assertEquals(RequestStatus.CHARGING, requestRepository.findFirstByCarIdOrderByRequestTimeDesc("V1")
+                .orElseThrow()
+                .getStatus());
+    }
+
     private RuntimeDtos.ManualChargeRequestEvent manualEvent(String carId, LocalDateTime eventTime) {
         return new RuntimeDtos.ManualChargeRequestEvent(
                 eventTime,
