@@ -2,15 +2,14 @@ package com.bupt.charging.domain;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import java.time.LocalDateTime;
 
 @Entity
 public class StationClock {
+    public static final Long SINGLETON_ID = 1L;
+
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @Column(nullable = false)
@@ -33,6 +32,7 @@ public class StationClock {
     }
 
     public StationClock(LocalDateTime baseWallTime, LocalDateTime baseStationTime) {
+        this.id = SINGLETON_ID;
         this.baseWallTime = baseWallTime;
         this.baseStationTime = baseStationTime;
         this.rate = 1.0;

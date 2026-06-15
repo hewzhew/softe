@@ -22,10 +22,14 @@ public class StationClockService {
     @Transactional
     public RuntimeDtos.ClockResponse setClock(RuntimeDtos.SetClockRequest request) {
         LocalDateTime wallNow = timeProvider.now();
-        LocalDateTime stationTime = request.currentTime() == null ? wallNow : request.currentTime();
-        double rate = request.rate() > 0 ? request.rate() : 1.0;
         StationClock clock = loadClock();
-        clock.configure(wallNow, stationTime, rate, request.running(), request.windowStart(), request.windowEnd());
+        RuntimeDtos.ClockResponse current = toResponse(clock, wallNow);
+        LocalDateTime stationTime = request.currentTime() == null ? current.currentTime() : request.currentTime();
+        double rate = request.rate() > 0 ? request.rate() : current.rate();
+        boolean running = request.running() == null ? current.running() : request.running();
+        LocalDateTime windowStart = request.windowStart() == null ? current.windowStart() : request.windowStart();
+        LocalDateTime windowEnd = request.windowEnd() == null ? current.windowEnd() : request.windowEnd();
+        clock.configure(wallNow, stationTime, rate, running, windowStart, windowEnd);
         return toResponse(clockRepository.save(clock), wallNow);
     }
 
@@ -63,9 +67,9 @@ public class StationClockService {
         return currentClock().currentTime();
     }
 
-    private StationClock loadClock() {
-        return clockRepository.findFirstByOrderByIdAsc()
-                .orElseGet(() -> clockRepository.save(new StationClock(timeProvider.now(), timeProvider.now())));
+    private synchronized StationClock loadClock() {
+        return clockRepository.findById(StationClock.SINGLETON_ID)
+                .orElseGet(() -> clockRepository.saveAndFlush(new StationClock(timeProvider.now(), timeProvider.now())));
     }
 
     private RuntimeDtos.ClockResponse toResponse(StationClock clock, LocalDateTime wallNow) {

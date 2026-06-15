@@ -13,7 +13,7 @@ public final class RuntimeDtos {
     public record SetClockRequest(
             LocalDateTime currentTime,
             double rate,
-            boolean running,
+            Boolean running,
             LocalDateTime windowStart,
             LocalDateTime windowEnd
     ) {
