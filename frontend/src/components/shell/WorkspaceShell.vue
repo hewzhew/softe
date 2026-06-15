@@ -31,7 +31,7 @@
           <p class="workspace-eyebrow">{{ routeLabel(normalizedRoute) }}</p>
           <h1>{{ activeTitle }}</h1>
         </div>
-        <el-tag effect="plain">H2 本机数据</el-tag>
+        <el-tag effect="plain">本机运行</el-tag>
       </header>
 
       <main class="workspace-content">
@@ -58,7 +58,7 @@ const navItems = [
   {
     route: ROUTES.STATION,
     mark: 'S',
-    description: '仿真时钟、事件队列与站点态势'
+    description: '站点时钟、事件流与站点态势'
   },
   {
     route: ROUTES.OWNER,
