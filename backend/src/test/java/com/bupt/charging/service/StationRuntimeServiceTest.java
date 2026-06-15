@@ -13,12 +13,17 @@ import com.bupt.charging.dto.ConfigDtos;
 import com.bupt.charging.dto.RuntimeDtos;
 import com.bupt.charging.repository.BillRepository;
 import com.bupt.charging.repository.ChargingSessionRepository;
+import com.bupt.charging.support.TimeProvider;
 import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 
 @SpringBootTest(properties = {
         "spring.datasource.url=jdbc:h2:mem:station-runtime-test;MODE=MySQL;DATABASE_TO_UPPER=false;DB_CLOSE_DELAY=-1",
@@ -48,6 +53,9 @@ class StationRuntimeServiceTest {
 
     @Autowired
     private BillRepository billRepository;
+
+    @Autowired
+    private MutableTimeProvider timeProvider;
 
     @Test
     void advancingStationTimeCompletesChargingAndStartsNextQueuedCar() {
@@ -142,5 +150,87 @@ class StationRuntimeServiceTest {
         assertEquals(LocalDateTime.of(2026, 6, 15, 6, 20), waitSession.getStartTime());
         assertEquals("F-2", waitSession.getPileId());
         assertEquals(List.of("CAR-SHORT", "CAR-WAIT", "CAR-LONG"), billedCars);
+    }
+
+    @Test
+    void runningClockSnapshotAdvanceStartsQueuedCarAtRuntimeCursor() {
+        configService.resetDemoData();
+        timeProvider.setNow(LocalDateTime.of(2026, 6, 15, 8, 0));
+        configService.initialize(new ConfigDtos.UpdateConfigRequest(1, 0, 10, 2, 30.0, 10.0));
+        stationClockService.setClock(new RuntimeDtos.SetClockRequest(
+                LocalDateTime.of(2026, 6, 15, 6, 0),
+                1.0,
+                true,
+                null,
+                null
+        ));
+
+        accountService.createNewAccount("CAR-RUN", "Runner", 80.0);
+        chargingService.submitRequest("CAR-RUN", 30.0, ChargeMode.FAST);
+        schedulerService.dispatchAll();
+
+        timeProvider.setNow(LocalDateTime.of(2026, 6, 15, 9, 1));
+        stationRuntimeService.advanceTo(stationClockService.currentStationTime());
+
+        Optional<ChargingSession> maybeSession = sessionRepository.findFirstByCarIdAndStatusOrderByStartTimeDesc(
+                "CAR-RUN",
+                SessionStatus.FINISHED
+        );
+        assertTrue(maybeSession.isPresent());
+        ChargingSession session = maybeSession.get();
+        assertEquals(LocalDateTime.of(2026, 6, 15, 6, 0), session.getStartTime());
+        assertEquals(RequestStatus.FINISHED, chargingService.queryCarState("CAR-RUN").carState());
+    }
+
+    @Test
+    void queryChargingStateShowsStationTimeProgressBeforeCompletion() {
+        configService.resetDemoData();
+        configService.initialize(new ConfigDtos.UpdateConfigRequest(1, 0, 10, 2, 30.0, 10.0));
+        stationClockService.setClock(new RuntimeDtos.SetClockRequest(
+                LocalDateTime.of(2026, 6, 15, 6, 0),
+                1.0,
+                false,
+                null,
+                null
+        ));
+
+        accountService.createNewAccount("CAR-PROGRESS", "Progress", 80.0);
+        chargingService.submitRequest("CAR-PROGRESS", 60.0, ChargeMode.FAST);
+        schedulerService.dispatchAll();
+
+        stationRuntimeService.advanceTo(LocalDateTime.of(2026, 6, 15, 6, 30));
+        stationClockService.setClock(new RuntimeDtos.SetClockRequest(
+                LocalDateTime.of(2026, 6, 15, 6, 30),
+                1.0,
+                false,
+                null,
+                null
+        ));
+
+        double chargedAmount = chargingService.queryChargingState("CAR-PROGRESS").chargedAmount();
+        assertTrue(chargedAmount > 0.0);
+        assertTrue(chargedAmount < 60.0);
+    }
+
+    @TestConfiguration
+    static class TestConfig {
+        @Bean
+        @Primary
+        MutableTimeProvider mutableTimeProvider() {
+            return new MutableTimeProvider();
+        }
+    }
+
+    static class MutableTimeProvider implements TimeProvider {
+        private LocalDateTime now = LocalDateTime.of(2026, 6, 15, 0, 0);
+
+        void setNow(LocalDateTime now) {
+            this.now = now;
+        }
+
+        @Override
+        public LocalDateTime now() {
+            return now;
+        }
     }
 }

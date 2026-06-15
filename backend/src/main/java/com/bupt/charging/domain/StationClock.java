@@ -24,6 +24,9 @@ public class StationClock {
     @Column(nullable = false)
     private boolean running;
 
+    @Column(nullable = false)
+    private LocalDateTime runtimeCursorTime;
+
     private LocalDateTime windowStart;
 
     private LocalDateTime windowEnd;
@@ -37,6 +40,7 @@ public class StationClock {
         this.baseStationTime = baseStationTime;
         this.rate = 1.0;
         this.running = false;
+        this.runtimeCursorTime = baseStationTime;
     }
 
     public void configure(LocalDateTime wallTime, LocalDateTime stationTime, double rate, boolean running,
@@ -47,6 +51,10 @@ public class StationClock {
         this.running = running;
         this.windowStart = windowStart;
         this.windowEnd = windowEnd;
+    }
+
+    public void resetRuntimeCursor(LocalDateTime runtimeCursorTime) {
+        this.runtimeCursorTime = runtimeCursorTime;
     }
 
     public Long getId() {
@@ -67,6 +75,10 @@ public class StationClock {
 
     public boolean isRunning() {
         return running;
+    }
+
+    public LocalDateTime getRuntimeCursorTime() {
+        return runtimeCursorTime == null ? baseStationTime : runtimeCursorTime;
     }
 
     public LocalDateTime getWindowStart() {

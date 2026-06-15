@@ -45,7 +45,7 @@ public class StationRuntimeService {
 
     @Transactional
     public void advanceTo(LocalDateTime targetTime) {
-        LocalDateTime cursorTime = stationClockService.currentStationTime();
+        LocalDateTime cursorTime = stationClockService.runtimeCursorTime();
         if (targetTime.isBefore(cursorTime)) {
             targetTime = cursorTime;
         }
@@ -88,6 +88,7 @@ public class StationRuntimeService {
 
         schedulerService.dispatchAll();
         startIdlePileHeads(targetTime);
+        stationClockService.markRuntimeAdvancedTo(targetTime);
     }
 
     private LocalDateTime finishTime(ChargingSession session, ChargingRequest request, ChargingPile pile) {

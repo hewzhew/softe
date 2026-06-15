@@ -30,6 +30,9 @@ public class StationClockService {
         LocalDateTime windowStart = request.windowStart() == null ? current.windowStart() : request.windowStart();
         LocalDateTime windowEnd = request.windowEnd() == null ? current.windowEnd() : request.windowEnd();
         clock.configure(wallNow, stationTime, rate, running, windowStart, windowEnd);
+        if (request.currentTime() != null) {
+            clock.resetRuntimeCursor(stationTime);
+        }
         return toResponse(clockRepository.save(clock), wallNow);
     }
 
@@ -51,6 +54,18 @@ public class StationClockService {
     @Transactional
     public LocalDateTime currentStationTime() {
         return currentClock().currentTime();
+    }
+
+    @Transactional
+    public LocalDateTime runtimeCursorTime() {
+        return loadClock().getRuntimeCursorTime();
+    }
+
+    @Transactional
+    public void markRuntimeAdvancedTo(LocalDateTime stationTime) {
+        StationClock clock = loadClock();
+        clock.resetRuntimeCursor(stationTime);
+        clockRepository.save(clock);
     }
 
     private synchronized StationClock loadClock() {
