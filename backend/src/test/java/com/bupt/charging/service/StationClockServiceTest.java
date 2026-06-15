@@ -8,6 +8,7 @@ import com.bupt.charging.domain.StationClock;
 import com.bupt.charging.dto.RuntimeDtos;
 import com.bupt.charging.repository.StationClockRepository;
 import com.bupt.charging.support.TimeProvider;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -35,6 +36,8 @@ class StationClockServiceTest {
     void resetClock() {
         clockRepository.deleteAll();
         timeProvider.setNow(LocalDateTime.of(2026, 6, 15, 0, 0));
+        timeProvider.setAdvanceAfterRead(Duration.ZERO);
+        timeProvider.resetReadCount();
     }
 
     @Test
@@ -147,6 +150,28 @@ class StationClockServiceTest {
         assertEquals(LocalDateTime.of(2026, 6, 15, 9, 30), current.windowEnd());
     }
 
+    @Test
+    void pauseUsesSingleWallClockSampleForStationTime() {
+        timeProvider.setNow(LocalDateTime.of(2026, 6, 15, 8, 0));
+        stationClockService.setClock(new RuntimeDtos.SetClockRequest(
+                LocalDateTime.of(2026, 6, 15, 6, 0),
+                60.0,
+                true,
+                null,
+                null
+        ));
+
+        timeProvider.setNow(LocalDateTime.of(2026, 6, 15, 8, 0, 1));
+        timeProvider.resetReadCount();
+        timeProvider.setAdvanceAfterRead(Duration.ofSeconds(1));
+
+        RuntimeDtos.ClockResponse paused = stationClockService.pause();
+
+        assertFalse(paused.running());
+        assertEquals(LocalDateTime.of(2026, 6, 15, 6, 1), paused.currentTime());
+        assertEquals(1, timeProvider.readCount());
+    }
+
     @TestConfiguration
     static class TestConfig {
         @Bean
@@ -158,14 +183,31 @@ class StationClockServiceTest {
 
     static class MutableTimeProvider implements TimeProvider {
         private LocalDateTime now = LocalDateTime.of(2026, 6, 15, 0, 0);
+        private Duration advanceAfterRead = Duration.ZERO;
+        private int readCount;
 
         void setNow(LocalDateTime now) {
             this.now = now;
         }
 
+        void setAdvanceAfterRead(Duration advanceAfterRead) {
+            this.advanceAfterRead = advanceAfterRead;
+        }
+
+        void resetReadCount() {
+            this.readCount = 0;
+        }
+
+        int readCount() {
+            return readCount;
+        }
+
         @Override
         public LocalDateTime now() {
-            return now;
+            readCount++;
+            LocalDateTime current = now;
+            now = now.plus(advanceAfterRead);
+            return current;
         }
     }
 }

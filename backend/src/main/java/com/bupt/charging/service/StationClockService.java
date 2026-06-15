@@ -35,26 +35,12 @@ public class StationClockService {
 
     @Transactional
     public RuntimeDtos.ClockResponse play() {
-        RuntimeDtos.ClockResponse current = currentClock();
-        return setClock(new RuntimeDtos.SetClockRequest(
-                current.currentTime(),
-                current.rate(),
-                true,
-                current.windowStart(),
-                current.windowEnd()
-        ));
+        return setClock(new RuntimeDtos.SetClockRequest(null, 0, true, null, null));
     }
 
     @Transactional
     public RuntimeDtos.ClockResponse pause() {
-        RuntimeDtos.ClockResponse current = currentClock();
-        return setClock(new RuntimeDtos.SetClockRequest(
-                current.currentTime(),
-                current.rate(),
-                false,
-                current.windowStart(),
-                current.windowEnd()
-        ));
+        return setClock(new RuntimeDtos.SetClockRequest(null, 0, false, null, null));
     }
 
     @Transactional
