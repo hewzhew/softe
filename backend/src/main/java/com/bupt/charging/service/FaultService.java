@@ -36,6 +36,7 @@ public class FaultService {
     private final BillingService billingService;
     private final PriorityFaultStrategy priorityFaultStrategy;
     private final TimeOrderFaultStrategy timeOrderFaultStrategy;
+    private final StationClockService stationClockService;
 
     public FaultService(
             ChargingPileRepository pileRepository,
@@ -45,7 +46,8 @@ public class FaultService {
             StationConfigRepository configRepository,
             BillingService billingService,
             PriorityFaultStrategy priorityFaultStrategy,
-            TimeOrderFaultStrategy timeOrderFaultStrategy
+            TimeOrderFaultStrategy timeOrderFaultStrategy,
+            StationClockService stationClockService
     ) {
         this.pileRepository = pileRepository;
         this.requestRepository = requestRepository;
@@ -55,6 +57,7 @@ public class FaultService {
         this.billingService = billingService;
         this.priorityFaultStrategy = priorityFaultStrategy;
         this.timeOrderFaultStrategy = timeOrderFaultStrategy;
+        this.stationClockService = stationClockService;
     }
 
     @Transactional
@@ -62,7 +65,7 @@ public class FaultService {
         ChargingPile faultPile = pileRepository.findByPileId(pileId)
                 .orElseThrow(() -> new BusinessException("pile not found"));
         ChargeMode mode = faultPile.getMode();
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = stationClockService.currentStationTime();
         FaultRecord faultRecord = faultRecordRepository.save(new FaultRecord(pileId, strategy, now));
 
         int generatedDetailCount = interruptCurrentSessionIfNeeded(faultPile, now);
@@ -75,9 +78,9 @@ public class FaultService {
         }
         requestRepository.saveAll(ordered);
 
-        List<String> movedCars = reassign(mode, ordered);
         faultPile.markFault();
         pileRepository.save(faultPile);
+        List<String> movedCars = reassign(mode, ordered);
         faultRecord.updateResult(String.join(",", movedCars));
         faultRecordRepository.save(faultRecord);
 
@@ -92,7 +95,7 @@ public class FaultService {
         pileRepository.save(pile);
         faultRecordRepository.findFirstByPileIdAndStatusOrderByFaultTimeDesc(pileId, "OPEN")
                 .ifPresent(record -> {
-                    record.close(LocalDateTime.now(), "recovered");
+                    record.close(stationClockService.currentStationTime(), "recovered");
                     faultRecordRepository.save(record);
                 });
         return new FaultDtos.FaultResult(pileId, "RECOVER", List.of(), List.of(), 0);

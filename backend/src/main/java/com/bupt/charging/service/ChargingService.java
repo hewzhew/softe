@@ -130,22 +130,26 @@ public class ChargingService {
 
     @Transactional
     public void startCharging(String carId, String pileId) {
-        ChargingRequest request = activeRequest(carId);
-        if (request.getStatus() == RequestStatus.CHARGING) {
-            ChargingSession session = sessionRepository.findFirstByCarIdAndStatusOrderByStartTimeDesc(
-                            carId, SessionStatus.CHARGING)
-                    .orElseThrow(() -> new BusinessException("charging session not found"));
-            if (pileId.equals(session.getPileId())) {
-                return;
-            }
-            throw new BusinessException("session is not on this pile");
-        }
         startChargingAt(carId, pileId, stationClockService.currentStationTime());
     }
 
     @Transactional
     public void startChargingAt(String carId, String pileId, LocalDateTime startTime) {
         ChargingRequest request = activeRequest(carId);
+        ChargingPile pile = pileRepository.findByPileId(pileId)
+                .orElseThrow(() -> new BusinessException("pile not found"));
+        if (request.getStatus() == RequestStatus.CHARGING) {
+            ChargingSession session = sessionRepository.findFirstByCarIdAndStatusOrderByStartTimeDesc(
+                            carId, SessionStatus.CHARGING)
+                    .orElseThrow(() -> new BusinessException("charging session not found"));
+            if (!pileId.equals(session.getPileId())) {
+                throw new BusinessException("session is not on this pile");
+            }
+            if (pile.getStatus() == PileStatus.WORKING && carId.equals(pile.getCurrentCarId())) {
+                return;
+            }
+            throw new BusinessException("pile is not available");
+        }
         if (request.getStatus() != RequestStatus.PILE_QUEUE || !pileId.equals(request.getAssignedPileId())) {
             throw new BusinessException("car is not assigned to this pile");
         }
@@ -154,8 +158,6 @@ public class ChargingService {
         if (queue.isEmpty() || !queue.get(0).getCarId().equals(carId)) {
             throw new BusinessException("car is not first in pile queue");
         }
-        ChargingPile pile = pileRepository.findByPileId(pileId)
-                .orElseThrow(() -> new BusinessException("pile not found"));
         if (pile.getStatus() != PileStatus.IDLE || pile.getCurrentCarId() != null) {
             throw new BusinessException("pile is not available");
         }

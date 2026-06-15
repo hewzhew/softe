@@ -308,6 +308,32 @@ class StationRuntimeServiceTest {
     }
 
     @Test
+    void startChargingAtIsIdempotentWhenCarAlreadyChargingOnSamePile() {
+        configService.resetDemoData();
+        configService.initialize(new ConfigDtos.UpdateConfigRequest(1, 0, 10, 2, 30.0, 10.0));
+        stationClockService.resetClock(new RuntimeDtos.SetClockRequest(
+                LocalDateTime.of(2026, 6, 15, 6, 0),
+                1.0,
+                false,
+                null,
+                null
+        ));
+
+        accountService.createNewAccount("CAR-IDEMPOTENT", "Idempotent", 80.0);
+        chargingService.submitRequest("CAR-IDEMPOTENT", 30.0, ChargeMode.FAST);
+        schedulerService.dispatchAll();
+        chargingService.startChargingAt("CAR-IDEMPOTENT", "F-1", LocalDateTime.of(2026, 6, 15, 6, 0));
+
+        chargingService.startChargingAt("CAR-IDEMPOTENT", "F-1", LocalDateTime.of(2026, 6, 15, 6, 5));
+
+        assertEquals(RequestStatus.CHARGING, chargingService.queryCarState("CAR-IDEMPOTENT").carState());
+        assertEquals(1, sessionRepository.findAll().stream()
+                .filter(session -> "CAR-IDEMPOTENT".equals(session.getCarId()))
+                .filter(session -> session.getStatus() == SessionStatus.CHARGING)
+                .count());
+    }
+
+    @Test
     void schedulerDoesNotAssignWaitingRequestToOfflinePile() {
         configService.resetDemoData();
         configService.initialize(new ConfigDtos.UpdateConfigRequest(1, 0, 10, 2, 30.0, 10.0));

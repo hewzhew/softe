@@ -67,6 +67,7 @@ public class ChargingController {
             @PathVariable String carId,
             @Valid @RequestBody ChargingDtos.StartChargingRequest request
     ) {
+        advanceRuntime();
         chargingService.startCharging(carId, request.pileId());
         return ApiResult.ok(true);
     }

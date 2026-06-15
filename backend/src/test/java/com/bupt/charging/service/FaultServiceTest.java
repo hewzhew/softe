@@ -9,8 +9,12 @@ import com.bupt.charging.domain.ChargingPile;
 import com.bupt.charging.domain.ChargingRequest;
 import com.bupt.charging.dto.ConfigDtos;
 import com.bupt.charging.dto.FaultDtos;
+import com.bupt.charging.dto.RuntimeDtos;
+import com.bupt.charging.repository.BillRepository;
 import com.bupt.charging.repository.ChargingPileRepository;
 import com.bupt.charging.repository.ChargingRequestRepository;
+import com.bupt.charging.repository.FaultRecordRepository;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -38,10 +42,19 @@ class FaultServiceTest {
     private FaultService faultService;
 
     @Autowired
+    private StationClockService stationClockService;
+
+    @Autowired
     private ChargingRequestRepository requestRepository;
 
     @Autowired
     private ChargingPileRepository pileRepository;
+
+    @Autowired
+    private FaultRecordRepository faultRecordRepository;
+
+    @Autowired
+    private BillRepository billRepository;
 
     @Test
     void priorityFaultDispatchesFaultQueueBeforeWaitingArea() {
@@ -89,6 +102,62 @@ class FaultServiceTest {
         FaultDtos.FaultResult result = faultService.handleFault("F-1", "PRIORITY");
 
         assertEquals(1, result.generatedDetailCount());
+    }
+
+    @Test
+    void priorityFaultDoesNotReassignCarsBackToFaultedPile() {
+        configService.resetDemoData();
+        configService.initialize(new ConfigDtos.UpdateConfigRequest(2, 0, 10, 2, 30.0, 10.0));
+        register("CAR-FAULT-REASSIGN");
+        chargingService.submitRequest("CAR-FAULT-REASSIGN", 30.0, ChargeMode.FAST);
+        schedulerService.dispatchAll();
+
+        faultService.handleFault("F-1", "PRIORITY");
+
+        ChargingRequest request = requestRepository.findFirstByCarIdOrderByRequestTimeDesc("CAR-FAULT-REASSIGN")
+                .orElseThrow();
+        assertEquals("F-2", request.getAssignedPileId());
+    }
+
+    @Test
+    void faultAndRecoveryUseStationTimeForRecordsAndInterruptedBill() {
+        configService.resetDemoData();
+        configService.initialize(new ConfigDtos.UpdateConfigRequest(2, 0, 10, 2, 30.0, 10.0));
+        stationClockService.resetClock(new RuntimeDtos.SetClockRequest(
+                LocalDateTime.of(2026, 6, 15, 6, 0),
+                1.0,
+                false,
+                null,
+                null
+        ));
+        register("CAR-FAULT-TIME");
+        chargingService.submitRequest("CAR-FAULT-TIME", 30.0, ChargeMode.FAST);
+        schedulerService.dispatchAll();
+        chargingService.startCharging("CAR-FAULT-TIME", "F-1");
+        stationClockService.setClock(new RuntimeDtos.SetClockRequest(
+                LocalDateTime.of(2026, 6, 15, 6, 30),
+                1.0,
+                false,
+                null,
+                null
+        ));
+
+        faultService.handleFault("F-1", "PRIORITY");
+        stationClockService.setClock(new RuntimeDtos.SetClockRequest(
+                LocalDateTime.of(2026, 6, 15, 6, 45),
+                1.0,
+                false,
+                null,
+                null
+        ));
+        faultService.recoverPile("F-1");
+
+        assertEquals(LocalDateTime.of(2026, 6, 15, 6, 30), faultRecordRepository.findAll().get(0).getFaultTime());
+        assertEquals(LocalDateTime.of(2026, 6, 15, 6, 45), faultRecordRepository.findAll().get(0).getRecoveredAt());
+        assertEquals(LocalDateTime.of(2026, 6, 15, 6, 30), billRepository
+                .findByCarIdAndBillDateOrderByGeneratedAtDesc("CAR-FAULT-TIME", LocalDate.of(2026, 6, 15))
+                .get(0)
+                .getGeneratedAt());
     }
 
     private void register(String carId) {
