@@ -74,4 +74,30 @@ class StationRuntimeServiceTest {
         assertTrue(sessionRepository.findFirstByCarIdAndStatusOrderByStartTimeDesc("CAR-1", SessionStatus.FINISHED).isPresent());
         assertFalse(billRepository.findAll().isEmpty());
     }
+
+    @Test
+    void directJumpAdvancementStartsQueuedCarsAtStationClockCursor() {
+        configService.resetDemoData();
+        configService.initialize(new ConfigDtos.UpdateConfigRequest(1, 0, 10, 2, 30.0, 10.0));
+        stationClockService.setClock(new RuntimeDtos.SetClockRequest(
+                LocalDateTime.of(2026, 6, 15, 6, 0),
+                1.0,
+                false,
+                null,
+                null
+        ));
+
+        accountService.createNewAccount("CAR-1", "Alice", 80.0);
+        accountService.createNewAccount("CAR-2", "Bob", 80.0);
+        chargingService.submitRequest("CAR-1", 30.0, ChargeMode.FAST);
+        chargingService.submitRequest("CAR-2", 15.0, ChargeMode.FAST);
+        schedulerService.dispatchAll();
+
+        stationRuntimeService.advanceTo(LocalDateTime.of(2026, 6, 15, 7, 1));
+
+        assertEquals(RequestStatus.FINISHED, chargingService.queryCarState("CAR-1").carState());
+        assertEquals(RequestStatus.CHARGING, chargingService.queryCarState("CAR-2").carState());
+        assertTrue(sessionRepository.findFirstByCarIdAndStatusOrderByStartTimeDesc("CAR-1", SessionStatus.FINISHED).isPresent());
+        assertFalse(billRepository.findAll().isEmpty());
+    }
 }

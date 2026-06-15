@@ -23,6 +23,7 @@ public class StationRuntimeService {
     private final BillingService billingService;
     private final SchedulerService schedulerService;
     private final ChargingService chargingService;
+    private final StationClockService stationClockService;
 
     public StationRuntimeService(
             ChargingSessionRepository sessionRepository,
@@ -30,7 +31,8 @@ public class StationRuntimeService {
             ChargingPileRepository pileRepository,
             BillingService billingService,
             SchedulerService schedulerService,
-            ChargingService chargingService
+            ChargingService chargingService,
+            StationClockService stationClockService
     ) {
         this.sessionRepository = sessionRepository;
         this.requestRepository = requestRepository;
@@ -38,12 +40,18 @@ public class StationRuntimeService {
         this.billingService = billingService;
         this.schedulerService = schedulerService;
         this.chargingService = chargingService;
+        this.stationClockService = stationClockService;
     }
 
     @Transactional
     public void advanceTo(LocalDateTime targetTime) {
+        LocalDateTime cursorTime = stationClockService.currentStationTime();
+        if (targetTime.isBefore(cursorTime)) {
+            targetTime = cursorTime;
+        }
+
         schedulerService.dispatchAll();
-        startIdlePileHeads(targetTime);
+        startIdlePileHeads(cursorTime);
 
         boolean changed;
         do {
