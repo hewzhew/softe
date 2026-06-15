@@ -18,7 +18,7 @@ const primaryActions = {
 
 export function deriveOwnerStage(context = {}) {
   const vehicle = context.vehicle || {}
-  const statusSource = typeof context.carState === 'object'
+  const statusSource = context.carState && typeof context.carState === 'object'
     ? context.carState
     : (context.carState || context.carId ? context : vehicle)
   const carState = statusSource.carState

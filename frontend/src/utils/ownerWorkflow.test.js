@@ -51,6 +51,20 @@ describe('owner workflow helpers', () => {
     )
   })
 
+  it('falls back safely when car state is explicitly null', () => {
+    assert.equal(deriveOwnerStage({ carState: null, bills: [] }), OWNER_STAGES.ANONYMOUS)
+    assert.equal(deriveOwnerStage({ owner: {}, carState: null, bills: [] }), OWNER_STAGES.NO_VEHICLE)
+    assert.equal(
+      deriveOwnerStage({
+        owner: {},
+        vehicle: { carId: 'CAR-1' },
+        carState: null,
+        bills: []
+      }),
+      OWNER_STAGES.READY
+    )
+  })
+
   it('chooses the primary owner action for each stage', () => {
     assert.equal(ownerPrimaryAction(OWNER_STAGES.ANONYMOUS), '注册车辆')
     assert.equal(ownerPrimaryAction(OWNER_STAGES.NO_VEHICLE), '完善车辆信息')
