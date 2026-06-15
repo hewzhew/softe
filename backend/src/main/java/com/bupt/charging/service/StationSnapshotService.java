@@ -3,12 +3,14 @@ package com.bupt.charging.service;
 import com.bupt.charging.domain.ChargeMode;
 import com.bupt.charging.domain.ChargingPile;
 import com.bupt.charging.domain.ChargingRequest;
+import com.bupt.charging.domain.ChargingSession;
 import com.bupt.charging.domain.PileStatus;
 import com.bupt.charging.domain.RequestStatus;
+import com.bupt.charging.domain.SessionStatus;
 import com.bupt.charging.dto.StationDtos;
 import com.bupt.charging.repository.ChargingPileRepository;
 import com.bupt.charging.repository.ChargingRequestRepository;
-import java.time.LocalDateTime;
+import com.bupt.charging.repository.ChargingSessionRepository;
 import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -23,13 +25,19 @@ public class StationSnapshotService {
 
     private final ChargingPileRepository pileRepository;
     private final ChargingRequestRepository requestRepository;
+    private final ChargingSessionRepository sessionRepository;
+    private final StationClockService stationClockService;
 
     public StationSnapshotService(
             ChargingPileRepository pileRepository,
-            ChargingRequestRepository requestRepository
+            ChargingRequestRepository requestRepository,
+            ChargingSessionRepository sessionRepository,
+            StationClockService stationClockService
     ) {
         this.pileRepository = pileRepository;
         this.requestRepository = requestRepository;
+        this.sessionRepository = sessionRepository;
+        this.stationClockService = stationClockService;
     }
 
     public StationDtos.StationSnapshot currentSnapshot() {
@@ -68,7 +76,7 @@ public class StationSnapshotService {
                 .count();
 
         return new StationDtos.StationSnapshot(
-                LocalDateTime.now().format(TIME_FORMAT),
+                stationClockService.currentStationTime().format(TIME_FORMAT),
                 new StationDtos.StationState(waitingArea, fastPiles, slowPiles),
                 vehicles,
                 new StationDtos.Metrics(waitingArea.size(), pileQueueCount, faultPileCount, activePileCount),
@@ -111,10 +119,29 @@ public class StationSnapshotService {
                 request.getMode().name(),
                 request.getStatus().name(),
                 format(request.getRequestAmount()),
-                "0.00",
+                format(chargedAmount(request)),
                 request.getQueueNum(),
                 position
         );
+    }
+
+    private double chargedAmount(ChargingRequest request) {
+        if (request.getStatus() != RequestStatus.CHARGING || request.getAssignedPileId() == null) {
+            return 0.0;
+        }
+        ChargingPile pile = pileRepository.findByPileId(request.getAssignedPileId()).orElse(null);
+        ChargingSession session = sessionRepository.findFirstByCarIdAndStatusOrderByStartTimeDesc(
+                request.getCarId(),
+                SessionStatus.CHARGING
+        ).orElse(null);
+        if (pile == null || session == null) {
+            return 0.0;
+        }
+        double elapsedHours = Math.max(0.0, java.time.Duration.between(
+                session.getStartTime(),
+                stationClockService.currentStationTime()
+        ).toSeconds() / 3600.0);
+        return Math.min(request.getRequestAmount(), elapsedHours * pile.getPower());
     }
 
     private String format(double value) {

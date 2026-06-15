@@ -15,6 +15,7 @@ import com.bupt.charging.repository.ChargingSessionRepository;
 import com.bupt.charging.repository.VehicleRepository;
 import com.bupt.charging.support.BusinessException;
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.springframework.stereotype.Service;
@@ -34,6 +35,7 @@ public class ChargingService {
     private final ChargingSessionRepository sessionRepository;
     private final BillingService billingService;
     private final SchedulerService schedulerService;
+    private final StationClockService stationClockService;
 
     public ChargingService(
             VehicleRepository vehicleRepository,
@@ -41,7 +43,8 @@ public class ChargingService {
             ChargingPileRepository pileRepository,
             ChargingSessionRepository sessionRepository,
             BillingService billingService,
-            SchedulerService schedulerService
+            SchedulerService schedulerService,
+            StationClockService stationClockService
     ) {
         this.vehicleRepository = vehicleRepository;
         this.requestRepository = requestRepository;
@@ -49,6 +52,7 @@ public class ChargingService {
         this.sessionRepository = sessionRepository;
         this.billingService = billingService;
         this.schedulerService = schedulerService;
+        this.stationClockService = stationClockService;
     }
 
     @Transactional
@@ -70,7 +74,7 @@ public class ChargingService {
                 vehicle.getCarCapacity(),
                 requestAmount,
                 mode,
-                LocalDateTime.now(),
+                stationClockService.currentStationTime(),
                 queueNum,
                 sequence
         ));
@@ -97,7 +101,7 @@ public class ChargingService {
             throw new BusinessException("charging mode cannot be modified after charging starts");
         }
         long sequence = requestRepository.countByMode(mode) + 1;
-        request.changeMode(mode, queuePrefix(mode) + sequence, sequence, LocalDateTime.now());
+        request.changeMode(mode, queuePrefix(mode) + sequence, sequence, stationClockService.currentStationTime());
         return toRequestResponse(requestRepository.save(request));
     }
 
@@ -125,18 +129,25 @@ public class ChargingService {
 
     @Transactional
     public void startCharging(String carId, String pileId) {
+        startChargingAt(carId, pileId, stationClockService.currentStationTime());
+    }
+
+    @Transactional
+    public void startChargingAt(String carId, String pileId, LocalDateTime startTime) {
         ChargingRequest request = activeRequest(carId);
         if (request.getStatus() != RequestStatus.PILE_QUEUE || !pileId.equals(request.getAssignedPileId())) {
             throw new BusinessException("car is not assigned to this pile");
         }
-        if (request.getPileQueuePosition() != 1) {
+        List<ChargingRequest> queue = requestRepository.findByAssignedPileIdAndStatusOrderByPileQueuePositionAsc(
+                pileId, RequestStatus.PILE_QUEUE);
+        if (queue.isEmpty() || !queue.get(0).getCarId().equals(carId)) {
             throw new BusinessException("car is not first in pile queue");
         }
         ChargingPile pile = pileRepository.findByPileId(pileId)
                 .orElseThrow(() -> new BusinessException("pile not found"));
         request.startCharging();
         pile.markWorking(carId);
-        sessionRepository.save(new ChargingSession(request.getId(), carId, pileId, LocalDateTime.now()));
+        sessionRepository.save(new ChargingSession(request.getId(), carId, pileId, startTime));
         requestRepository.save(request);
         pileRepository.save(pile);
     }
@@ -146,10 +157,15 @@ public class ChargingService {
         ChargingSession session = sessionRepository.findFirstByCarIdAndStatusOrderByStartTimeDesc(
                         carId, SessionStatus.CHARGING)
                 .orElseThrow(() -> new BusinessException("charging session not found"));
+        ChargingPile pile = pileRepository.findByPileId(session.getPileId())
+                .orElseThrow(() -> new BusinessException("pile not found"));
+        LocalDateTime now = stationClockService.currentStationTime();
+        double elapsedHours = Math.max(0.0, Duration.between(session.getStartTime(), now).toSeconds() / 3600.0);
+        double chargedAmount = Math.min(request.getRequestAmount(), elapsedHours * pile.getPower());
         return new ChargingDtos.ChargingStateResponse(
                 carId,
                 session.getPileId(),
-                session.getChargeAmount(),
+                chargedAmount,
                 request.getRequestAmount(),
                 BigDecimal.ZERO
         );

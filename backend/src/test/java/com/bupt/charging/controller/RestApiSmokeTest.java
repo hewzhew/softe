@@ -115,7 +115,7 @@ class RestApiSmokeTest {
         JsonNode data = objectMapper.readTree(response.getBody()).path("data");
         assertEquals("LIVE", data.path("sessionMode").asText());
         assertEquals("LIVE_MANUAL", data.path("sourceSummary").path("primarySourceType").asText());
-        assertTrue(data.path("station").path("waitingArea").size() > 0);
+        assertTrue(data.path("metrics").path("pileQueueCount").asInt() > 0);
         assertTrue(data.path("station").has("fastPiles"));
         assertTrue(data.path("station").has("slowPiles"));
         assertTrue(data.path("vehicles").has("CAR-F-1"));
