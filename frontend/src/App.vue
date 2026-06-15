@@ -1,34 +1,39 @@
 <template>
-  <el-container class="app-shell">
-    <el-header class="app-header">
-      <div>
-        <h1>波普特大学充电站</h1>
-        <p>调度运行 · 分时计费 · 故障重排</p>
-      </div>
-      <el-tag type="success" effect="dark">站点运行中</el-tag>
-    </el-header>
-
-    <el-main>
-      <el-tabs v-model="activeTab" class="main-tabs">
-        <el-tab-pane label="站点运行" name="simulation">
-          <SimulationSandbox />
-        </el-tab-pane>
-        <el-tab-pane label="车主自助" name="owner">
-          <OwnerPanel />
-        </el-tab-pane>
-        <el-tab-pane label="运营管理" name="admin">
-          <AdminPanel />
-        </el-tab-pane>
-      </el-tabs>
-    </el-main>
-  </el-container>
+  <WorkspaceShell :active-route="activeRoute" @navigate="navigateTo">
+    <SimulationSandbox v-if="activeRoute === ROUTES.STATION" />
+    <OwnerPanel v-else-if="activeRoute === ROUTES.OWNER" />
+    <AdminPanel v-else />
+  </WorkspaceShell>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
+import WorkspaceShell from './components/shell/WorkspaceShell.vue'
 import SimulationSandbox from './views/SimulationSandbox.vue'
 import OwnerPanel from './views/OwnerPanel.vue'
 import AdminPanel from './views/AdminPanel.vue'
+import { ROUTES, normalizeRoute, setHashRoute } from './utils/hashRoute'
 
-const activeTab = ref('simulation')
+const activeRoute = ref(normalizeRoute(window.location.hash))
+
+function syncRoute() {
+  activeRoute.value = normalizeRoute(window.location.hash)
+}
+
+function navigateTo(route) {
+  activeRoute.value = setHashRoute(route)
+}
+
+onMounted(() => {
+  if (!window.location.hash) {
+    navigateTo(ROUTES.STATION)
+  } else {
+    syncRoute()
+  }
+  window.addEventListener('hashchange', syncRoute)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('hashchange', syncRoute)
+})
 </script>
