@@ -56,6 +56,10 @@ public class StationRuntimeService {
         boolean changed;
         do {
             changed = false;
+            ChargingSession nextSession = null;
+            ChargingRequest nextRequest = null;
+            ChargingPile nextPile = null;
+            LocalDateTime nextFinishTime = null;
             List<ChargingSession> activeSessions = sessionRepository.findByStatusOrderByStartTimeAsc(
                     SessionStatus.CHARGING);
             for (ChargingSession session : activeSessions) {
@@ -66,12 +70,19 @@ public class StationRuntimeService {
                 }
                 LocalDateTime finishTime = finishTime(session, request, pile);
                 if (!finishTime.isAfter(targetTime)) {
-                    finishSession(session, request, pile, finishTime);
-                    schedulerService.dispatchAll();
-                    startIdlePileHeads(finishTime);
-                    changed = true;
-                    break;
+                    if (isEarlierDueSession(finishTime, pile, request, nextFinishTime, nextPile, nextRequest)) {
+                        nextSession = session;
+                        nextRequest = request;
+                        nextPile = pile;
+                        nextFinishTime = finishTime;
+                    }
                 }
+            }
+            if (nextSession != null) {
+                finishSession(nextSession, nextRequest, nextPile, nextFinishTime);
+                schedulerService.dispatchAll();
+                startIdlePileHeads(nextFinishTime);
+                changed = true;
             }
         } while (changed);
 
@@ -82,6 +93,28 @@ public class StationRuntimeService {
     private LocalDateTime finishTime(ChargingSession session, ChargingRequest request, ChargingPile pile) {
         long seconds = Math.max(1L, Math.round((request.getRequestAmount() / pile.getPower()) * 3600.0));
         return session.getStartTime().plusSeconds(seconds);
+    }
+
+    private boolean isEarlierDueSession(
+            LocalDateTime finishTime,
+            ChargingPile pile,
+            ChargingRequest request,
+            LocalDateTime currentFinishTime,
+            ChargingPile currentPile,
+            ChargingRequest currentRequest
+    ) {
+        if (currentFinishTime == null) {
+            return true;
+        }
+        int finishComparison = finishTime.compareTo(currentFinishTime);
+        if (finishComparison != 0) {
+            return finishComparison < 0;
+        }
+        int pileComparison = pile.getPileId().compareTo(currentPile.getPileId());
+        if (pileComparison != 0) {
+            return pileComparison < 0;
+        }
+        return request.getCarId().compareTo(currentRequest.getCarId()) < 0;
     }
 
     private void finishSession(

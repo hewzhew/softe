@@ -4,7 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.bupt.charging.domain.Bill;
 import com.bupt.charging.domain.ChargeMode;
+import com.bupt.charging.domain.ChargingSession;
 import com.bupt.charging.domain.RequestStatus;
 import com.bupt.charging.domain.SessionStatus;
 import com.bupt.charging.dto.ConfigDtos;
@@ -12,6 +14,8 @@ import com.bupt.charging.dto.RuntimeDtos;
 import com.bupt.charging.repository.BillRepository;
 import com.bupt.charging.repository.ChargingSessionRepository;
 import java.time.LocalDateTime;
+import java.util.Comparator;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -99,5 +103,44 @@ class StationRuntimeServiceTest {
         assertEquals(RequestStatus.CHARGING, chargingService.queryCarState("CAR-2").carState());
         assertTrue(sessionRepository.findFirstByCarIdAndStatusOrderByStartTimeDesc("CAR-1", SessionStatus.FINISHED).isPresent());
         assertFalse(billRepository.findAll().isEmpty());
+    }
+
+    @Test
+    void directJumpProcessesDueCompletionsByFinishTimeInsteadOfStartTime() {
+        configService.resetDemoData();
+        configService.initialize(new ConfigDtos.UpdateConfigRequest(2, 0, 10, 2, 30.0, 10.0));
+        stationClockService.setClock(new RuntimeDtos.SetClockRequest(
+                LocalDateTime.of(2026, 6, 15, 6, 0),
+                1.0,
+                false,
+                null,
+                null
+        ));
+
+        accountService.createNewAccount("CAR-LONG", "Long", 80.0);
+        accountService.createNewAccount("CAR-SHORT", "Short", 80.0);
+        accountService.createNewAccount("CAR-WAIT", "Wait", 80.0);
+        chargingService.submitRequest("CAR-LONG", 60.0, ChargeMode.FAST);
+        chargingService.submitRequest("CAR-SHORT", 5.0, ChargeMode.FAST);
+        chargingService.submitRequest("CAR-WAIT", 5.0, ChargeMode.FAST);
+        schedulerService.dispatchAll();
+
+        chargingService.startChargingAt("CAR-LONG", "F-1", LocalDateTime.of(2026, 6, 15, 6, 0));
+        chargingService.startChargingAt("CAR-SHORT", "F-2", LocalDateTime.of(2026, 6, 15, 6, 10));
+
+        stationRuntimeService.advanceTo(LocalDateTime.of(2026, 6, 15, 8, 30));
+
+        ChargingSession waitSession = sessionRepository.findFirstByCarIdAndStatusOrderByStartTimeDesc(
+                "CAR-WAIT",
+                SessionStatus.FINISHED
+        ).orElseThrow();
+        List<String> billedCars = billRepository.findAll().stream()
+                .sorted(Comparator.comparing(Bill::getId))
+                .map(Bill::getCarId)
+                .toList();
+
+        assertEquals(LocalDateTime.of(2026, 6, 15, 6, 20), waitSession.getStartTime());
+        assertEquals("F-2", waitSession.getPileId());
+        assertEquals(List.of("CAR-SHORT", "CAR-WAIT", "CAR-LONG"), billedCars);
     }
 }
