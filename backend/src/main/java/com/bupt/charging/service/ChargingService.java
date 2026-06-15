@@ -4,15 +4,18 @@ import com.bupt.charging.domain.ChargeMode;
 import com.bupt.charging.domain.ChargingPile;
 import com.bupt.charging.domain.ChargingRequest;
 import com.bupt.charging.domain.ChargingSession;
+import com.bupt.charging.domain.EventCommitState;
 import com.bupt.charging.domain.PileStatus;
 import com.bupt.charging.domain.RequestStatus;
 import com.bupt.charging.domain.SessionStatus;
+import com.bupt.charging.domain.StationEventType;
 import com.bupt.charging.domain.Vehicle;
 import com.bupt.charging.dto.BillingDtos;
 import com.bupt.charging.dto.ChargingDtos;
 import com.bupt.charging.repository.ChargingPileRepository;
 import com.bupt.charging.repository.ChargingRequestRepository;
 import com.bupt.charging.repository.ChargingSessionRepository;
+import com.bupt.charging.repository.StationEventRepository;
 import com.bupt.charging.repository.VehicleRepository;
 import com.bupt.charging.support.BusinessException;
 import java.math.BigDecimal;
@@ -35,6 +38,7 @@ public class ChargingService {
     private final ChargingRequestRepository requestRepository;
     private final ChargingPileRepository pileRepository;
     private final ChargingSessionRepository sessionRepository;
+    private final StationEventRepository eventRepository;
     private final BillingService billingService;
     private final SchedulerService schedulerService;
     private final StationClockService stationClockService;
@@ -44,6 +48,7 @@ public class ChargingService {
             ChargingRequestRepository requestRepository,
             ChargingPileRepository pileRepository,
             ChargingSessionRepository sessionRepository,
+            StationEventRepository eventRepository,
             BillingService billingService,
             SchedulerService schedulerService,
             StationClockService stationClockService
@@ -52,6 +57,7 @@ public class ChargingService {
         this.requestRepository = requestRepository;
         this.pileRepository = pileRepository;
         this.sessionRepository = sessionRepository;
+        this.eventRepository = eventRepository;
         this.billingService = billingService;
         this.schedulerService = schedulerService;
         this.stationClockService = stationClockService;
@@ -59,6 +65,7 @@ public class ChargingService {
 
     @Transactional
     public ChargingDtos.RequestResponse submitRequest(String carId, double requestAmount, ChargeMode mode) {
+        rejectPendingSubmitEvent(carId);
         return submitRequestAt(carId, requestAmount, mode, stationClockService.currentStationTime());
     }
 
@@ -276,6 +283,18 @@ public class ChargingService {
 
     private Optional<ChargingRequest> findActiveRequest(String carId) {
         return requestRepository.findFirstByCarIdAndStatusInOrderByRequestTimeDesc(carId, ACTIVE_REQUEST_STATUSES);
+    }
+
+    private void rejectPendingSubmitEvent(String carId) {
+        boolean hasPendingSubmitEvent = eventRepository
+                .existsByAppliedFalseAndCommitStateAndEventTypeAndTargetIdAndEventTimeGreaterThanEqual(
+                        EventCommitState.COMMITTED,
+                        StationEventType.ChargeRequestSubmitted,
+                        carId,
+                        stationClockService.runtimeCursorTime());
+        if (hasPendingSubmitEvent) {
+            throw new BusinessException("car has pending station submit event");
+        }
     }
 
     private void interruptChargingForCancellation(ChargingRequest request, LocalDateTime eventTime) {

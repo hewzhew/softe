@@ -44,6 +44,12 @@ class StationEventServiceTest {
     private StationEventService stationEventService;
 
     @Autowired
+    private AccountService accountService;
+
+    @Autowired
+    private ChargingService chargingService;
+
+    @Autowired
     private StationEventRepository eventRepository;
 
     @Autowired
@@ -199,6 +205,20 @@ class StationEventServiceTest {
         assertEquals(RequestStatus.CHARGING, requestRepository.findFirstByCarIdOrderByRequestTimeDesc("V1")
                 .orElseThrow()
                 .getStatus());
+    }
+
+    @Test
+    void pendingCourseSubmitEventReservesCarIdAgainstDirectSubmit() {
+        stationEventService.importCourseSample(false);
+        accountService.createNewAccount("V5", "V5", 80.0);
+
+        assertThrows(BusinessException.class, () -> chargingService.submitRequest("V5", 20.0, ChargeMode.SLOW));
+
+        stationRuntimeService.advanceTo(LocalDateTime.of(2026, 6, 1, 6, 25));
+
+        assertEquals(0, eventRepository.findByAppliedFalseAndEventTimeLessThanEqualOrderByEventTimeAscSequenceAsc(
+                LocalDateTime.of(2026, 6, 1, 6, 25)).size());
+        assertTrue(requestRepository.findFirstByCarIdOrderByRequestTimeDesc("V5").isPresent());
     }
 
     private RuntimeDtos.ManualChargeRequestEvent manualEvent(String carId, LocalDateTime eventTime) {
