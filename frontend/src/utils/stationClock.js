@@ -14,8 +14,8 @@ export function shouldPollRuntime(clock = {}) {
 }
 
 export function formatRuntimeEvent(event = {}) {
-  const time = String(event.at || event.time || event.timestamp || '').replace('T', ' ').slice(11, 19) || '--:--:--'
-  const carId = event.carId || event.vehicleId || '-'
+  const time = String(event.eventTime || event.at || event.time || event.timestamp || '').replace('T', ' ').slice(11, 19) || '--:--:--'
+  const carId = event.targetId || event.carId || event.vehicleId || '-'
   const type = event.type || event.eventType || event.name || '-'
 
   return `${time} ${carId} ${type}`

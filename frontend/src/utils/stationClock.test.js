@@ -34,4 +34,15 @@ describe('station clock helpers', () => {
       '06:00:00 CAR-1 ChargeRequestSubmitted'
     )
   })
+
+  it('formats backend runtime event rows', () => {
+    assert.equal(
+      formatRuntimeEvent({
+        eventTime: '2026-06-03T06:00:00',
+        targetId: 'CAR-1',
+        eventType: 'ChargeRequestSubmitted'
+      }),
+      '06:00:00 CAR-1 ChargeRequestSubmitted'
+    )
+  })
 })

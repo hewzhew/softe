@@ -12,6 +12,7 @@
           :key="item.route"
           class="workspace-nav-item"
           :class="{ active: item.route === normalizedRoute }"
+          :aria-current="item.route === normalizedRoute ? 'page' : undefined"
           type="button"
           @click="$emit('navigate', item.route)"
         >

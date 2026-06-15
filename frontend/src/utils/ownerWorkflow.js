@@ -17,7 +17,7 @@ const primaryActions = {
 }
 
 export function deriveOwnerStage(context = {}) {
-  const vehicle = context.vehicle || context.carState || {}
+  const vehicle = context.vehicle || (context.carState || context.carId ? context : {})
   const bills = Array.isArray(context.bills) ? context.bills : []
 
   if (vehicle.carState === 'FINISHED' || bills.length > 0) {
