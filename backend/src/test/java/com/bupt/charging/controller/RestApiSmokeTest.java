@@ -263,6 +263,70 @@ class RestApiSmokeTest {
         assertTrue(objectMapper.readTree(billResponse.getBody()).path("data").size() > 0);
     }
 
+    @Test
+    void requestSubmittedAfterClockPatchIsNotBackdatedBySnapshotAdvance() throws Exception {
+        ResponseEntity<String> resetResponse = restTemplate.postForEntity("/api/demo/reset", null, String.class);
+        assertEquals(HttpStatus.OK, resetResponse.getStatusCode());
+        ResponseEntity<String> configResponse = restTemplate.postForEntity(
+                "/api/config",
+                Map.of(
+                        "fastPileCount", 1,
+                        "slowPileCount", 0,
+                        "waitingAreaSize", 10,
+                        "queueLength", 2,
+                        "fastPower", 30.0,
+                        "slowPower", 10.0
+                ),
+                String.class
+        );
+        assertEquals(HttpStatus.OK, configResponse.getStatusCode());
+        assertEquals(HttpStatus.OK, patchForString(
+                "/api/station/clock",
+                Map.of("currentTime", "2026-06-15T06:00:00", "rate", 1.0, "running", false)
+        ).getStatusCode());
+        assertEquals(HttpStatus.OK, patchForString(
+                "/api/station/clock",
+                Map.of("currentTime", "2026-06-15T07:00:00", "rate", 1.0, "running", false)
+        ).getStatusCode());
+        ResponseEntity<String> accountResponse = restTemplate.postForEntity(
+                "/api/accounts",
+                Map.of("carId", "CAR-LATE-API", "userName", "Late API", "carCapacity", 80.0),
+                String.class
+        );
+        assertEquals(HttpStatus.OK, accountResponse.getStatusCode());
+        ResponseEntity<String> requestResponse = restTemplate.postForEntity(
+                "/api/charging/requests",
+                Map.of("carId", "CAR-LATE-API", "requestAmount", 30.0, "mode", "FAST"),
+                String.class
+        );
+        assertEquals(HttpStatus.OK, requestResponse.getStatusCode());
+        assertEquals(HttpStatus.OK, restTemplate.postForEntity("/api/scheduler/dispatch", null, String.class)
+                .getStatusCode());
+        assertEquals(HttpStatus.OK, patchForString(
+                "/api/station/clock",
+                Map.of("currentTime", "2026-06-15T07:30:00", "rate", 1.0, "running", false)
+        ).getStatusCode());
+
+        ResponseEntity<String> snapshotResponse = restTemplate.getForEntity("/api/station/snapshot", String.class);
+        ResponseEntity<String> carStateResponse = restTemplate.getForEntity(
+                "/api/charging/cars/CAR-LATE-API/state",
+                String.class
+        );
+        ResponseEntity<String> billResponse = restTemplate.getForEntity(
+                "/api/bills?carId=CAR-LATE-API&date=2026-06-15",
+                String.class
+        );
+
+        assertEquals(HttpStatus.OK, snapshotResponse.getStatusCode());
+        assertEquals(HttpStatus.OK, carStateResponse.getStatusCode());
+        assertEquals("CHARGING", objectMapper.readTree(carStateResponse.getBody())
+                .path("data")
+                .path("carState")
+                .asText());
+        assertEquals(HttpStatus.OK, billResponse.getStatusCode());
+        assertEquals(0, objectMapper.readTree(billResponse.getBody()).path("data").size());
+    }
+
     private ResponseEntity<String> patchForString(String path, Map<String, Object> body) throws Exception {
         java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
                 .uri(java.net.URI.create("http://localhost:" + port + path))

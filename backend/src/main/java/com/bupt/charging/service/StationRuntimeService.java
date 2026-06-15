@@ -6,7 +6,6 @@ import com.bupt.charging.domain.ChargingSession;
 import com.bupt.charging.domain.PileStatus;
 import com.bupt.charging.domain.RequestStatus;
 import com.bupt.charging.domain.SessionStatus;
-import com.bupt.charging.dto.BillingDtos;
 import com.bupt.charging.repository.ChargingPileRepository;
 import com.bupt.charging.repository.ChargingRequestRepository;
 import com.bupt.charging.repository.ChargingSessionRepository;
@@ -46,13 +45,13 @@ public class StationRuntimeService {
 
     @Transactional
     public void advanceTo(LocalDateTime targetTime) {
-        LocalDateTime cursorTime = stationClockService.runtimeCursorTime();
+        LocalDateTime cursorTime = stationClockService.lockRuntimeCursorTime();
         if (targetTime.isBefore(cursorTime)) {
             targetTime = cursorTime;
         }
 
         schedulerService.dispatchAll();
-        startIdlePileHeads(cursorTime);
+        startIdlePileHeads(cursorTime, targetTime);
 
         boolean changed;
         do {
@@ -82,13 +81,13 @@ public class StationRuntimeService {
             if (nextSession != null) {
                 finishSession(nextSession, nextRequest, nextPile, nextFinishTime);
                 schedulerService.dispatchAll();
-                startIdlePileHeads(nextFinishTime);
+                startIdlePileHeads(nextFinishTime, targetTime);
                 changed = true;
             }
         } while (changed);
 
         schedulerService.dispatchAll();
-        startIdlePileHeads(targetTime);
+        startIdlePileHeads(targetTime, targetTime);
         stationClockService.markRuntimeAdvancedTo(targetTime);
     }
 
@@ -130,13 +129,13 @@ public class StationRuntimeService {
         request.finish();
         pile.addChargingStats(Duration.between(session.getStartTime(), finishTime).toSeconds() / 3600.0, amount);
         pile.release();
-        BillingDtos.BillResponse ignored = billingService.createBillForSession(session, pile, amount, finishTime);
+        billingService.createBillForSession(session, pile, amount, finishTime);
         sessionRepository.save(session);
         requestRepository.save(request);
         pileRepository.save(pile);
     }
 
-    private void startIdlePileHeads(LocalDateTime startTime) {
+    private void startIdlePileHeads(LocalDateTime boundaryTime, LocalDateTime targetTime) {
         for (ChargingPile pile : pileRepository.findAll()) {
             if (pile.getCurrentCarId() != null || pile.getStatus() != PileStatus.IDLE) {
                 continue;
@@ -146,8 +145,16 @@ public class StationRuntimeService {
                     RequestStatus.PILE_QUEUE
             );
             if (!queue.isEmpty()) {
-                chargingService.startChargingAt(queue.get(0).getCarId(), pile.getPileId(), startTime);
+                ChargingRequest request = queue.get(0);
+                LocalDateTime effectiveStart = max(boundaryTime, request.getRequestTime());
+                if (!effectiveStart.isAfter(targetTime)) {
+                    chargingService.startChargingAt(request.getCarId(), pile.getPileId(), effectiveStart);
+                }
             }
         }
+    }
+
+    private LocalDateTime max(LocalDateTime left, LocalDateTime right) {
+        return left.isAfter(right) ? left : right;
     }
 }

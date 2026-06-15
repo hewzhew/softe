@@ -4,6 +4,7 @@ import com.bupt.charging.domain.ChargeMode;
 import com.bupt.charging.domain.ChargingPile;
 import com.bupt.charging.domain.ChargingRequest;
 import com.bupt.charging.domain.ChargingSession;
+import com.bupt.charging.domain.PileStatus;
 import com.bupt.charging.domain.RequestStatus;
 import com.bupt.charging.domain.SessionStatus;
 import com.bupt.charging.domain.Vehicle;
@@ -129,6 +130,16 @@ public class ChargingService {
 
     @Transactional
     public void startCharging(String carId, String pileId) {
+        ChargingRequest request = activeRequest(carId);
+        if (request.getStatus() == RequestStatus.CHARGING) {
+            ChargingSession session = sessionRepository.findFirstByCarIdAndStatusOrderByStartTimeDesc(
+                            carId, SessionStatus.CHARGING)
+                    .orElseThrow(() -> new BusinessException("charging session not found"));
+            if (pileId.equals(session.getPileId())) {
+                return;
+            }
+            throw new BusinessException("session is not on this pile");
+        }
         startChargingAt(carId, pileId, stationClockService.currentStationTime());
     }
 
@@ -145,9 +156,15 @@ public class ChargingService {
         }
         ChargingPile pile = pileRepository.findByPileId(pileId)
                 .orElseThrow(() -> new BusinessException("pile not found"));
+        if (pile.getStatus() != PileStatus.IDLE || pile.getCurrentCarId() != null) {
+            throw new BusinessException("pile is not available");
+        }
+        LocalDateTime effectiveStart = startTime.isBefore(request.getRequestTime())
+                ? request.getRequestTime()
+                : startTime;
         request.startCharging();
         pile.markWorking(carId);
-        sessionRepository.save(new ChargingSession(request.getId(), carId, pileId, startTime));
+        sessionRepository.save(new ChargingSession(request.getId(), carId, pileId, effectiveStart));
         requestRepository.save(request);
         pileRepository.save(pile);
     }

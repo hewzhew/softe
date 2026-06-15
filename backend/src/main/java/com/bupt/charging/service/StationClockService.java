@@ -72,6 +72,14 @@ public class StationClockService {
     }
 
     @Transactional
+    public LocalDateTime lockRuntimeCursorTime() {
+        loadClock();
+        return clockRepository.findByIdForUpdate(StationClock.SINGLETON_ID)
+                .orElseThrow(() -> new IllegalStateException("station clock not found"))
+                .getRuntimeCursorTime();
+    }
+
+    @Transactional
     public void markRuntimeAdvancedTo(LocalDateTime stationTime) {
         StationClock clock = loadClock();
         clock.resetRuntimeCursor(stationTime);

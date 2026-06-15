@@ -2,6 +2,7 @@ package com.bupt.charging.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.bupt.charging.domain.Bill;
@@ -13,6 +14,7 @@ import com.bupt.charging.dto.ConfigDtos;
 import com.bupt.charging.dto.RuntimeDtos;
 import com.bupt.charging.repository.BillRepository;
 import com.bupt.charging.repository.ChargingSessionRepository;
+import com.bupt.charging.support.BusinessException;
 import com.bupt.charging.support.TimeProvider;
 import java.time.LocalDateTime;
 import java.util.Comparator;
@@ -244,6 +246,86 @@ class StationRuntimeServiceTest {
                 "CAR-OFFLINE",
                 SessionStatus.CHARGING
         ).isEmpty());
+    }
+
+    @Test
+    void advanceDoesNotBackdateRequestsSubmittedAfterRuntimeCursor() {
+        configService.resetDemoData();
+        configService.initialize(new ConfigDtos.UpdateConfigRequest(1, 0, 10, 2, 30.0, 10.0));
+        stationClockService.resetClock(new RuntimeDtos.SetClockRequest(
+                LocalDateTime.of(2026, 6, 15, 6, 0),
+                1.0,
+                false,
+                null,
+                null
+        ));
+        stationClockService.setClock(new RuntimeDtos.SetClockRequest(
+                LocalDateTime.of(2026, 6, 15, 7, 0),
+                1.0,
+                false,
+                null,
+                null
+        ));
+
+        accountService.createNewAccount("CAR-LATE", "Late", 80.0);
+        chargingService.submitRequest("CAR-LATE", 30.0, ChargeMode.FAST);
+        schedulerService.dispatchAll();
+
+        stationRuntimeService.advanceTo(LocalDateTime.of(2026, 6, 15, 7, 30));
+
+        assertEquals(RequestStatus.CHARGING, chargingService.queryCarState("CAR-LATE").carState());
+        ChargingSession session = sessionRepository.findFirstByCarIdAndStatusOrderByStartTimeDesc(
+                "CAR-LATE",
+                SessionStatus.CHARGING
+        ).orElseThrow();
+        assertEquals(LocalDateTime.of(2026, 6, 15, 7, 0), session.getStartTime());
+        assertTrue(billRepository.findAll().stream().noneMatch(bill -> "CAR-LATE".equals(bill.getCarId())));
+    }
+
+    @Test
+    void manualStartRejectsOfflinePileAndLeavesRequestQueued() {
+        configService.resetDemoData();
+        configService.initialize(new ConfigDtos.UpdateConfigRequest(1, 0, 10, 2, 30.0, 10.0));
+        stationClockService.resetClock(new RuntimeDtos.SetClockRequest(
+                LocalDateTime.of(2026, 6, 15, 6, 0),
+                1.0,
+                false,
+                null,
+                null
+        ));
+
+        accountService.createNewAccount("CAR-MANUAL", "Manual", 80.0);
+        chargingService.submitRequest("CAR-MANUAL", 30.0, ChargeMode.FAST);
+        schedulerService.dispatchAll();
+        pileService.powerOff("F-1");
+
+        assertThrows(BusinessException.class, () -> chargingService.startCharging("CAR-MANUAL", "F-1"));
+        assertEquals(RequestStatus.PILE_QUEUE, chargingService.queryCarState("CAR-MANUAL").carState());
+        assertTrue(sessionRepository.findFirstByCarIdAndStatusOrderByStartTimeDesc(
+                "CAR-MANUAL",
+                SessionStatus.CHARGING
+        ).isEmpty());
+    }
+
+    @Test
+    void schedulerDoesNotAssignWaitingRequestToOfflinePile() {
+        configService.resetDemoData();
+        configService.initialize(new ConfigDtos.UpdateConfigRequest(1, 0, 10, 2, 30.0, 10.0));
+        stationClockService.resetClock(new RuntimeDtos.SetClockRequest(
+                LocalDateTime.of(2026, 6, 15, 6, 0),
+                1.0,
+                false,
+                null,
+                null
+        ));
+
+        accountService.createNewAccount("CAR-WAIT", "Wait", 80.0);
+        chargingService.submitRequest("CAR-WAIT", 30.0, ChargeMode.FAST);
+        pileService.powerOff("F-1");
+
+        schedulerService.dispatchAll();
+
+        assertEquals(RequestStatus.WAITING_AREA, chargingService.queryCarState("CAR-WAIT").carState());
     }
 
     @TestConfiguration

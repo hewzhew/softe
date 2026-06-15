@@ -2,6 +2,7 @@ package com.bupt.charging.dto;
 
 import com.bupt.charging.domain.ChargeMode;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -28,7 +29,7 @@ public final class RuntimeDtos {
     ) {
     }
 
-    public record AdvanceRequest(LocalDateTime toTime) {
+    public record AdvanceRequest(@NotNull LocalDateTime toTime) {
     }
 
     public record ManualChargeRequestEvent(
