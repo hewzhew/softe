@@ -4,6 +4,8 @@ import com.bupt.charging.dto.ApiResult;
 import com.bupt.charging.dto.BillingDtos;
 import com.bupt.charging.dto.ChargingDtos;
 import com.bupt.charging.service.ChargingService;
+import com.bupt.charging.service.StationClockService;
+import com.bupt.charging.service.StationRuntimeService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -17,13 +19,22 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/charging")
 public class ChargingController {
     private final ChargingService chargingService;
+    private final StationClockService stationClockService;
+    private final StationRuntimeService stationRuntimeService;
 
-    public ChargingController(ChargingService chargingService) {
+    public ChargingController(
+            ChargingService chargingService,
+            StationClockService stationClockService,
+            StationRuntimeService stationRuntimeService
+    ) {
         this.chargingService = chargingService;
+        this.stationClockService = stationClockService;
+        this.stationRuntimeService = stationRuntimeService;
     }
 
     @PostMapping("/requests")
     public ApiResult<ChargingDtos.RequestResponse> submit(@Valid @RequestBody ChargingDtos.SubmitRequest request) {
+        advanceRuntime();
         return ApiResult.ok(chargingService.submitRequest(request.carId(), request.requestAmount(), request.mode()));
     }
 
@@ -32,6 +43,7 @@ public class ChargingController {
             @PathVariable String carId,
             @Valid @RequestBody ChargingDtos.ModifyAmountRequest request
     ) {
+        advanceRuntime();
         return ApiResult.ok(chargingService.modifyAmount(carId, request.amount()));
     }
 
@@ -40,11 +52,13 @@ public class ChargingController {
             @PathVariable String carId,
             @Valid @RequestBody ChargingDtos.ModifyModeRequest request
     ) {
+        advanceRuntime();
         return ApiResult.ok(chargingService.modifyMode(carId, request.mode()));
     }
 
     @GetMapping("/cars/{carId}/state")
     public ApiResult<ChargingDtos.CarStateResponse> carState(@PathVariable String carId) {
+        advanceRuntime();
         return ApiResult.ok(chargingService.queryCarState(carId));
     }
 
@@ -53,12 +67,14 @@ public class ChargingController {
             @PathVariable String carId,
             @Valid @RequestBody ChargingDtos.StartChargingRequest request
     ) {
+        advanceRuntime();
         chargingService.startCharging(carId, request.pileId());
         return ApiResult.ok(true);
     }
 
     @GetMapping("/{carId}/state")
     public ApiResult<ChargingDtos.ChargingStateResponse> chargingState(@PathVariable String carId) {
+        advanceRuntime();
         return ApiResult.ok(chargingService.queryChargingState(carId));
     }
 
@@ -67,6 +83,11 @@ public class ChargingController {
             @PathVariable String carId,
             @Valid @RequestBody ChargingDtos.EndChargingRequest request
     ) {
+        advanceRuntime();
         return ApiResult.ok(chargingService.endCharging(carId, request.pileId(), request.actualAmount()));
+    }
+
+    private void advanceRuntime() {
+        stationRuntimeService.advanceTo(stationClockService.currentStationTime());
     }
 }

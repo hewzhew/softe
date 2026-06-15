@@ -94,7 +94,7 @@ public class BillingService {
         Bill bill = billRepository.save(new Bill(
                 session.getCarId(),
                 effectiveEnd.toLocalDate(),
-                LocalDateTime.now(),
+                effectiveEnd,
                 fee.chargeFee(),
                 fee.serviceFee(),
                 fee.totalFee()

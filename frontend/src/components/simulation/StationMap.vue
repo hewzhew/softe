@@ -5,8 +5,8 @@
         <p class="eyebrow">站点状态</p>
         <h2>充电站沙盘</h2>
       </div>
-      <el-tag :type="mode === 'LIVE' ? 'success' : 'warning'" effect="plain">
-        {{ mode === 'LIVE' ? '实时' : '推演' }} · {{ snapshot?.time || '--:--' }}
+      <el-tag :type="tagType" effect="plain">
+        {{ modeLabel }} · {{ snapshot?.time || '--:--' }}
       </el-tag>
     </div>
 
@@ -54,14 +54,16 @@ import VehicleToken from './VehicleToken.vue'
 
 const props = defineProps({
   snapshot: { type: Object, default: null },
-  mode: { type: String, default: 'SIMULATION' }
+  mode: { type: String, default: 'RUNTIME' }
 })
 
 const emptyText = computed(() => (
-  props.mode === 'LIVE'
-    ? '正在读取实时站点状态'
-    : '加载课程事件序列后显示站点状态'
+  props.mode === 'SIMULATION'
+    ? '加载事件序列后显示站点状态'
+    : '正在读取站点状态'
 ))
+const modeLabel = computed(() => (props.mode === 'SIMULATION' ? '快照' : '运行'))
+const tagType = computed(() => (props.mode === 'SIMULATION' ? 'warning' : 'success'))
 const station = computed(() => props.snapshot?.station || {})
 const vehicles = computed(() => props.snapshot?.vehicles || {})
 const waitingArea = computed(() => station.value.waitingArea || [])

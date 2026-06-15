@@ -50,6 +50,7 @@ public class SchedulerService {
         Map<String, List<ChargingRequest>> queues = pileQueues(piles);
         int queueLength = currentConfig().getQueueLength();
         List<ChargingPile> availablePiles = piles.stream()
+                .filter(ChargingPile::isAvailableForQueue)
                 .filter(pile -> queues.getOrDefault(pile.getPileId(), List.of()).size() < queueLength)
                 .toList();
 

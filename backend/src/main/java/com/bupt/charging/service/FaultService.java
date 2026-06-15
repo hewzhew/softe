@@ -36,6 +36,7 @@ public class FaultService {
     private final BillingService billingService;
     private final PriorityFaultStrategy priorityFaultStrategy;
     private final TimeOrderFaultStrategy timeOrderFaultStrategy;
+    private final StationClockService stationClockService;
 
     public FaultService(
             ChargingPileRepository pileRepository,
@@ -45,7 +46,8 @@ public class FaultService {
             StationConfigRepository configRepository,
             BillingService billingService,
             PriorityFaultStrategy priorityFaultStrategy,
-            TimeOrderFaultStrategy timeOrderFaultStrategy
+            TimeOrderFaultStrategy timeOrderFaultStrategy,
+            StationClockService stationClockService
     ) {
         this.pileRepository = pileRepository;
         this.requestRepository = requestRepository;
@@ -55,17 +57,22 @@ public class FaultService {
         this.billingService = billingService;
         this.priorityFaultStrategy = priorityFaultStrategy;
         this.timeOrderFaultStrategy = timeOrderFaultStrategy;
+        this.stationClockService = stationClockService;
     }
 
     @Transactional
     public FaultDtos.FaultResult handleFault(String pileId, String strategy) {
+        return handleFaultAt(pileId, strategy, stationClockService.currentStationTime());
+    }
+
+    @Transactional
+    public FaultDtos.FaultResult handleFaultAt(String pileId, String strategy, LocalDateTime stationTime) {
         ChargingPile faultPile = pileRepository.findByPileId(pileId)
                 .orElseThrow(() -> new BusinessException("pile not found"));
         ChargeMode mode = faultPile.getMode();
-        LocalDateTime now = LocalDateTime.now();
-        FaultRecord faultRecord = faultRecordRepository.save(new FaultRecord(pileId, strategy, now));
+        FaultRecord faultRecord = faultRecordRepository.save(new FaultRecord(pileId, strategy, stationTime));
 
-        int generatedDetailCount = interruptCurrentSessionIfNeeded(faultPile, now);
+        int generatedDetailCount = interruptCurrentSessionIfNeeded(faultPile, stationTime);
         List<ChargingRequest> candidates = collectCandidates(faultPile, strategy);
         List<ChargingRequest> ordered = orderCandidates(candidates, strategy);
         List<String> reorderedCars = ordered.stream().map(ChargingRequest::getCarId).toList();
@@ -75,9 +82,9 @@ public class FaultService {
         }
         requestRepository.saveAll(ordered);
 
-        List<String> movedCars = reassign(mode, ordered);
         faultPile.markFault();
         pileRepository.save(faultPile);
+        List<String> movedCars = reassign(mode, ordered);
         faultRecord.updateResult(String.join(",", movedCars));
         faultRecordRepository.save(faultRecord);
 
@@ -86,13 +93,18 @@ public class FaultService {
 
     @Transactional
     public FaultDtos.FaultResult recoverPile(String pileId) {
+        return recoverPileAt(pileId, stationClockService.currentStationTime());
+    }
+
+    @Transactional
+    public FaultDtos.FaultResult recoverPileAt(String pileId, LocalDateTime stationTime) {
         ChargingPile pile = pileRepository.findByPileId(pileId)
                 .orElseThrow(() -> new BusinessException("pile not found"));
         pile.recover();
         pileRepository.save(pile);
         faultRecordRepository.findFirstByPileIdAndStatusOrderByFaultTimeDesc(pileId, "OPEN")
                 .ifPresent(record -> {
-                    record.close(LocalDateTime.now(), "recovered");
+                    record.close(stationTime, "recovered");
                     faultRecordRepository.save(record);
                 });
         return new FaultDtos.FaultResult(pileId, "RECOVER", List.of(), List.of(), 0);

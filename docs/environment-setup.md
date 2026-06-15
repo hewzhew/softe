@@ -1,6 +1,6 @@
 # 开发环境准备说明
 
-本项目计划采用 Spring Boot + Vue + H2。为了让本机演示稳定，建议使用下面的环境。
+本项目采用 Spring Boot + Vue + H2。为了让本机演示稳定，建议使用下面的环境。
 
 ## 必需软件
 
@@ -85,8 +85,8 @@ D:\softe
 
 ```powershell
 cd D:\softe\backend
-.\mvnw.cmd test
-.\mvnw.cmd spring-boot:run
+mvn test
+mvn spring-boot:run
 ```
 
 前端：
@@ -95,6 +95,12 @@ cd D:\softe\backend
 cd D:\softe\frontend
 npm install
 npm run dev
+```
+
+前端打开：
+
+```text
+http://127.0.0.1:5173/#/station
 ```
 
 ## 给 Codex 的工作环境建议

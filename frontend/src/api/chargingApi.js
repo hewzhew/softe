@@ -35,5 +35,13 @@ export const api = {
   runAcceptanceScenario: () => unwrap(http.get('/acceptance/scenario')),
   getCourseScenario: () => unwrap(http.get('/scenarios/course-sample')),
   runCourseScenario: () => unwrap(http.post('/scenarios/course-sample/run')),
-  getStationSnapshot: () => unwrap(http.get('/station/snapshot'))
+  getStationSnapshot: () => unwrap(http.get('/station/snapshot')),
+  getStationClock: () => unwrap(http.get('/station/clock')),
+  setStationClock: (payload) => unwrap(http.patch('/station/clock', payload)),
+  playStationClock: () => unwrap(http.post('/station/clock/play')),
+  pauseStationClock: () => unwrap(http.post('/station/clock/pause')),
+  advanceStation: (payload) => unwrap(http.post('/station/advance', payload)),
+  getStationEvents: () => unwrap(http.get('/station/events')),
+  addStationEvent: (payload) => unwrap(http.post('/station/events', payload)),
+  importStationEvents: (payload) => unwrap(http.post('/station/events/import', payload))
 }
