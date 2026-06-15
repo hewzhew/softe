@@ -17,7 +17,12 @@ import { ROUTES, normalizeRoute, setHashRoute } from './utils/hashRoute'
 const activeRoute = ref(normalizeRoute(window.location.hash))
 
 function syncRoute() {
-  activeRoute.value = normalizeRoute(window.location.hash)
+  const normalized = normalizeRoute(window.location.hash)
+  activeRoute.value = normalized
+
+  if (window.location.hash !== `#${normalized}`) {
+    setHashRoute(normalized)
+  }
 }
 
 function navigateTo(route) {
@@ -25,11 +30,7 @@ function navigateTo(route) {
 }
 
 onMounted(() => {
-  if (!window.location.hash) {
-    navigateTo(ROUTES.STATION)
-  } else {
-    syncRoute()
-  }
+  syncRoute()
   window.addEventListener('hashchange', syncRoute)
 })
 

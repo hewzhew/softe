@@ -24,7 +24,7 @@ export function routeLabel(route) {
 export function setHashRoute(route, targetWindow = globalThis.window) {
   const normalized = normalizeRoute(route)
   if (targetWindow?.location) {
-    targetWindow.location.hash = normalized
+    targetWindow.location.hash = `#${normalized}`
   }
   return normalized
 }
