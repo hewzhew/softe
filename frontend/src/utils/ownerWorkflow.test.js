@@ -24,6 +24,33 @@ describe('owner workflow helpers', () => {
     assert.equal(deriveOwnerStage({ carId: 'CAR-1', carState: 'FINISHED' }), OWNER_STAGES.COMPLETED)
   })
 
+  it('derives stages when vehicle identity and car state are separate', () => {
+    assert.equal(
+      deriveOwnerStage({
+        owner: {},
+        vehicle: { carId: 'CAR-1' },
+        carState: { carState: 'WAITING_AREA' }
+      }),
+      OWNER_STAGES.WAITING
+    )
+    assert.equal(
+      deriveOwnerStage({
+        owner: {},
+        vehicle: { carId: 'CAR-1' },
+        carState: { carState: 'CHARGING' }
+      }),
+      OWNER_STAGES.CHARGING
+    )
+    assert.equal(
+      deriveOwnerStage({
+        owner: {},
+        vehicle: { carId: 'CAR-1' },
+        carState: { carState: 'FINISHED' }
+      }),
+      OWNER_STAGES.COMPLETED
+    )
+  })
+
   it('chooses the primary owner action for each stage', () => {
     assert.equal(ownerPrimaryAction(OWNER_STAGES.ANONYMOUS), '注册车辆')
     assert.equal(ownerPrimaryAction(OWNER_STAGES.NO_VEHICLE), '完善车辆信息')

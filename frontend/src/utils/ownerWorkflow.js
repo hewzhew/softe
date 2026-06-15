@@ -17,19 +17,23 @@ const primaryActions = {
 }
 
 export function deriveOwnerStage(context = {}) {
-  const vehicle = context.vehicle || (context.carState || context.carId ? context : {})
+  const vehicle = context.vehicle || {}
+  const statusSource = typeof context.carState === 'object'
+    ? context.carState
+    : (context.carState || context.carId ? context : vehicle)
+  const carState = statusSource.carState
   const bills = Array.isArray(context.bills) ? context.bills : []
 
-  if (vehicle.carState === 'FINISHED' || bills.length > 0) {
+  if (carState === 'FINISHED' || bills.length > 0) {
     return OWNER_STAGES.COMPLETED
   }
-  if (vehicle.carState === 'CHARGING') {
+  if (carState === 'CHARGING') {
     return OWNER_STAGES.CHARGING
   }
-  if (['WAITING_AREA', 'PILE_QUEUE'].includes(vehicle.carState)) {
+  if (['WAITING_AREA', 'PILE_QUEUE'].includes(carState)) {
     return OWNER_STAGES.WAITING
   }
-  if (vehicle.carId || vehicle.carState) {
+  if (vehicle.carId || context.carId || carState) {
     return OWNER_STAGES.READY
   }
   if (context.owner || context.account) {
