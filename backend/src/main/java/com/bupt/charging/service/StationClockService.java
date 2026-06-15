@@ -21,7 +21,17 @@ public class StationClockService {
 
     @Transactional
     public RuntimeDtos.ClockResponse setClock(RuntimeDtos.SetClockRequest request) {
+        return configureClock(request, false);
+    }
+
+    @Transactional
+    public RuntimeDtos.ClockResponse resetClock(RuntimeDtos.SetClockRequest request) {
+        return configureClock(request, true);
+    }
+
+    private RuntimeDtos.ClockResponse configureClock(RuntimeDtos.SetClockRequest request, boolean resetRuntimeCursor) {
         LocalDateTime wallNow = timeProvider.now();
+        boolean existingClock = clockRepository.existsById(StationClock.SINGLETON_ID);
         StationClock clock = loadClock();
         RuntimeDtos.ClockResponse current = toResponse(clock, wallNow);
         LocalDateTime stationTime = request.currentTime() == null ? current.currentTime() : request.currentTime();
@@ -30,7 +40,7 @@ public class StationClockService {
         LocalDateTime windowStart = request.windowStart() == null ? current.windowStart() : request.windowStart();
         LocalDateTime windowEnd = request.windowEnd() == null ? current.windowEnd() : request.windowEnd();
         clock.configure(wallNow, stationTime, rate, running, windowStart, windowEnd);
-        if (request.currentTime() != null) {
+        if (resetRuntimeCursor || (!existingClock && request.currentTime() != null)) {
             clock.resetRuntimeCursor(stationTime);
         }
         return toResponse(clockRepository.save(clock), wallNow);

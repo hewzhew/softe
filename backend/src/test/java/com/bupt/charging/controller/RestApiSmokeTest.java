@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
@@ -23,6 +24,9 @@ class RestApiSmokeTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @LocalServerPort
+    private int port;
 
     @Test
     void configAndAccountEndpointsReturnApiResult() {
@@ -187,5 +191,86 @@ class RestApiSmokeTest {
         JsonNode metrics = objectMapper.readTree(response.getBody()).path("data").path("metrics");
         assertEquals(1, metrics.path("faultPileCount").asInt());
         assertEquals(4, metrics.path("activePileCount").asInt());
+    }
+
+    @Test
+    void stationClockPatchDoesNotSkipRuntimeCursorForSnapshotAdvance() throws Exception {
+        ResponseEntity<String> resetResponse = restTemplate.postForEntity("/api/demo/reset", null, String.class);
+        assertEquals(HttpStatus.OK, resetResponse.getStatusCode());
+        ResponseEntity<String> configResponse = restTemplate.postForEntity(
+                "/api/config",
+                Map.of(
+                        "fastPileCount", 1,
+                        "slowPileCount", 0,
+                        "waitingAreaSize", 10,
+                        "queueLength", 2,
+                        "fastPower", 30.0,
+                        "slowPower", 10.0
+                ),
+                String.class
+        );
+        assertEquals(HttpStatus.OK, configResponse.getStatusCode());
+        ResponseEntity<String> clockAtStart = patchForString(
+                "/api/station/clock",
+                Map.of(
+                        "currentTime", "2026-06-15T06:00:00",
+                        "rate", 1.0,
+                        "running", false
+                )
+        );
+        assertEquals(HttpStatus.OK, clockAtStart.getStatusCode());
+        ResponseEntity<String> accountResponse = restTemplate.postForEntity(
+                "/api/accounts",
+                Map.of("carId", "CAR-PATCH", "userName", "Patch User", "carCapacity", 80.0),
+                String.class
+        );
+        assertEquals(HttpStatus.OK, accountResponse.getStatusCode());
+        ResponseEntity<String> requestResponse = restTemplate.postForEntity(
+                "/api/charging/requests",
+                Map.of("carId", "CAR-PATCH", "requestAmount", 30.0, "mode", "FAST"),
+                String.class
+        );
+        assertEquals(HttpStatus.OK, requestResponse.getStatusCode());
+        ResponseEntity<String> dispatchResponse = restTemplate.postForEntity("/api/scheduler/dispatch", null, String.class);
+        assertEquals(HttpStatus.OK, dispatchResponse.getStatusCode());
+
+        ResponseEntity<String> clockAtTarget = patchForString(
+                "/api/station/clock",
+                Map.of(
+                        "currentTime", "2026-06-15T07:01:00",
+                        "rate", 1.0,
+                        "running", false
+                )
+        );
+        assertEquals(HttpStatus.OK, clockAtTarget.getStatusCode());
+        ResponseEntity<String> response = restTemplate.getForEntity("/api/station/snapshot", String.class);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        ResponseEntity<String> carStateResponse = restTemplate.getForEntity(
+                "/api/charging/cars/CAR-PATCH/state",
+                String.class
+        );
+        assertEquals(HttpStatus.OK, carStateResponse.getStatusCode());
+        assertEquals("FINISHED", objectMapper.readTree(carStateResponse.getBody())
+                .path("data")
+                .path("carState")
+                .asText());
+        ResponseEntity<String> billResponse = restTemplate.getForEntity(
+                "/api/bills?carId=CAR-PATCH&date=2026-06-15",
+                String.class
+        );
+        assertEquals(HttpStatus.OK, billResponse.getStatusCode());
+        assertTrue(objectMapper.readTree(billResponse.getBody()).path("data").size() > 0);
+    }
+
+    private ResponseEntity<String> patchForString(String path, Map<String, Object> body) throws Exception {
+        java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
+                .uri(java.net.URI.create("http://localhost:" + port + path))
+                .header("Content-Type", "application/json")
+                .method("PATCH", java.net.http.HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(body)))
+                .build();
+        java.net.http.HttpResponse<String> response = java.net.http.HttpClient.newHttpClient()
+                .send(request, java.net.http.HttpResponse.BodyHandlers.ofString());
+        return new ResponseEntity<>(response.body(), HttpStatus.valueOf(response.statusCode()));
     }
 }

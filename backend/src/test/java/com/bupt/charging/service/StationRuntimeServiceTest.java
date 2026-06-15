@@ -43,6 +43,9 @@ class StationRuntimeServiceTest {
     private SchedulerService schedulerService;
 
     @Autowired
+    private PileService pileService;
+
+    @Autowired
     private StationClockService stationClockService;
 
     @Autowired
@@ -61,7 +64,7 @@ class StationRuntimeServiceTest {
     void advancingStationTimeCompletesChargingAndStartsNextQueuedCar() {
         configService.resetDemoData();
         configService.initialize(new ConfigDtos.UpdateConfigRequest(1, 0, 10, 2, 30.0, 10.0));
-        stationClockService.setClock(new RuntimeDtos.SetClockRequest(
+        stationClockService.resetClock(new RuntimeDtos.SetClockRequest(
                 LocalDateTime.of(2026, 6, 15, 6, 0),
                 1.0,
                 false,
@@ -84,6 +87,11 @@ class StationRuntimeServiceTest {
         assertEquals(RequestStatus.FINISHED, chargingService.queryCarState("CAR-1").carState());
         assertEquals(RequestStatus.CHARGING, chargingService.queryCarState("CAR-2").carState());
         assertTrue(sessionRepository.findFirstByCarIdAndStatusOrderByStartTimeDesc("CAR-1", SessionStatus.FINISHED).isPresent());
+        Bill bill = billRepository.findAll().stream()
+                .filter(item -> "CAR-1".equals(item.getCarId()))
+                .findFirst()
+                .orElseThrow();
+        assertEquals(LocalDateTime.of(2026, 6, 15, 7, 0), bill.getGeneratedAt());
         assertFalse(billRepository.findAll().isEmpty());
     }
 
@@ -91,7 +99,7 @@ class StationRuntimeServiceTest {
     void directJumpAdvancementStartsQueuedCarsAtStationClockCursor() {
         configService.resetDemoData();
         configService.initialize(new ConfigDtos.UpdateConfigRequest(1, 0, 10, 2, 30.0, 10.0));
-        stationClockService.setClock(new RuntimeDtos.SetClockRequest(
+        stationClockService.resetClock(new RuntimeDtos.SetClockRequest(
                 LocalDateTime.of(2026, 6, 15, 6, 0),
                 1.0,
                 false,
@@ -117,7 +125,7 @@ class StationRuntimeServiceTest {
     void directJumpProcessesDueCompletionsByFinishTimeInsteadOfStartTime() {
         configService.resetDemoData();
         configService.initialize(new ConfigDtos.UpdateConfigRequest(2, 0, 10, 2, 30.0, 10.0));
-        stationClockService.setClock(new RuntimeDtos.SetClockRequest(
+        stationClockService.resetClock(new RuntimeDtos.SetClockRequest(
                 LocalDateTime.of(2026, 6, 15, 6, 0),
                 1.0,
                 false,
@@ -157,7 +165,7 @@ class StationRuntimeServiceTest {
         configService.resetDemoData();
         timeProvider.setNow(LocalDateTime.of(2026, 6, 15, 8, 0));
         configService.initialize(new ConfigDtos.UpdateConfigRequest(1, 0, 10, 2, 30.0, 10.0));
-        stationClockService.setClock(new RuntimeDtos.SetClockRequest(
+        stationClockService.resetClock(new RuntimeDtos.SetClockRequest(
                 LocalDateTime.of(2026, 6, 15, 6, 0),
                 1.0,
                 true,
@@ -186,7 +194,7 @@ class StationRuntimeServiceTest {
     void queryChargingStateShowsStationTimeProgressBeforeCompletion() {
         configService.resetDemoData();
         configService.initialize(new ConfigDtos.UpdateConfigRequest(1, 0, 10, 2, 30.0, 10.0));
-        stationClockService.setClock(new RuntimeDtos.SetClockRequest(
+        stationClockService.resetClock(new RuntimeDtos.SetClockRequest(
                 LocalDateTime.of(2026, 6, 15, 6, 0),
                 1.0,
                 false,
@@ -210,6 +218,32 @@ class StationRuntimeServiceTest {
         double chargedAmount = chargingService.queryChargingState("CAR-PROGRESS").chargedAmount();
         assertTrue(chargedAmount > 0.0);
         assertTrue(chargedAmount < 60.0);
+    }
+
+    @Test
+    void advanceDoesNotStartQueuedHeadOnOfflinePile() {
+        configService.resetDemoData();
+        configService.initialize(new ConfigDtos.UpdateConfigRequest(1, 0, 10, 2, 30.0, 10.0));
+        stationClockService.resetClock(new RuntimeDtos.SetClockRequest(
+                LocalDateTime.of(2026, 6, 15, 6, 0),
+                1.0,
+                false,
+                null,
+                null
+        ));
+
+        accountService.createNewAccount("CAR-OFFLINE", "Offline", 80.0);
+        chargingService.submitRequest("CAR-OFFLINE", 30.0, ChargeMode.FAST);
+        schedulerService.dispatchAll();
+        pileService.powerOff("F-1");
+
+        stationRuntimeService.advanceTo(LocalDateTime.of(2026, 6, 15, 7, 1));
+
+        assertEquals(RequestStatus.PILE_QUEUE, chargingService.queryCarState("CAR-OFFLINE").carState());
+        assertTrue(sessionRepository.findFirstByCarIdAndStatusOrderByStartTimeDesc(
+                "CAR-OFFLINE",
+                SessionStatus.CHARGING
+        ).isEmpty());
     }
 
     @TestConfiguration

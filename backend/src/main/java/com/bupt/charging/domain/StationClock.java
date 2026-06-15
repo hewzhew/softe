@@ -24,7 +24,6 @@ public class StationClock {
     @Column(nullable = false)
     private boolean running;
 
-    @Column(nullable = false)
     private LocalDateTime runtimeCursorTime;
 
     private LocalDateTime windowStart;

@@ -5,6 +5,7 @@ import com.bupt.charging.dto.RuntimeDtos;
 import com.bupt.charging.service.StationClockService;
 import com.bupt.charging.service.StationRuntimeService;
 import jakarta.validation.Valid;
+import java.time.LocalDateTime;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -38,8 +39,10 @@ public class RuntimeController {
 
     @PostMapping("/advance")
     public ApiResult<RuntimeDtos.ClockResponse> advance(@Valid @RequestBody RuntimeDtos.AdvanceRequest request) {
-        stationRuntimeService.advanceTo(request.toTime());
-        stationClockService.setClock(new RuntimeDtos.SetClockRequest(request.toTime(), 1.0, false, null, null));
+        LocalDateTime cursorTime = stationClockService.runtimeCursorTime();
+        LocalDateTime effectiveTime = request.toTime().isBefore(cursorTime) ? cursorTime : request.toTime();
+        stationRuntimeService.advanceTo(effectiveTime);
+        stationClockService.setClock(new RuntimeDtos.SetClockRequest(effectiveTime, 1.0, false, null, null));
         return ApiResult.ok(stationClockService.currentClock());
     }
 

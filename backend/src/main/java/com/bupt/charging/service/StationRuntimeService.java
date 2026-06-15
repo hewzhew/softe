@@ -3,6 +3,7 @@ package com.bupt.charging.service;
 import com.bupt.charging.domain.ChargingPile;
 import com.bupt.charging.domain.ChargingRequest;
 import com.bupt.charging.domain.ChargingSession;
+import com.bupt.charging.domain.PileStatus;
 import com.bupt.charging.domain.RequestStatus;
 import com.bupt.charging.domain.SessionStatus;
 import com.bupt.charging.dto.BillingDtos;
@@ -137,7 +138,7 @@ public class StationRuntimeService {
 
     private void startIdlePileHeads(LocalDateTime startTime) {
         for (ChargingPile pile : pileRepository.findAll()) {
-            if (pile.getCurrentCarId() != null) {
+            if (pile.getCurrentCarId() != null || pile.getStatus() != PileStatus.IDLE) {
                 continue;
             }
             List<ChargingRequest> queue = requestRepository.findByAssignedPileIdAndStatusOrderByPileQueuePositionAsc(
