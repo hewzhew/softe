@@ -49,12 +49,15 @@ public final class RuntimeDtos {
     public record RuntimeEventRow(
             Long id,
             LocalDateTime eventTime,
+            LocalDateTime receivedTime,
             String sourceType,
             String sourceName,
             String eventType,
+            String commitState,
             String targetId,
             String mode,
             double amount,
+            long sequence,
             boolean applied,
             String rawText
     ) {

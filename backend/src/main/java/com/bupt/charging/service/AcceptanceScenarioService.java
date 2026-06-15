@@ -80,6 +80,10 @@ public class AcceptanceScenarioService {
         return new AcceptanceDtos.AcceptanceScenarioResponse(config(), rows, sampleChecks(rows));
     }
 
+    public List<String> courseSampleRawEvents() {
+        return DEFAULT_EVENTS;
+    }
+
     public ScenarioDtos.ReplayBundle runCourseSampleReplay() {
         ScenarioState state = new ScenarioState();
         List<ScenarioDtos.ScenarioCommand> commands = new ArrayList<>();

@@ -19,6 +19,7 @@ import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -58,8 +59,21 @@ public class ChargingService {
 
     @Transactional
     public ChargingDtos.RequestResponse submitRequest(String carId, double requestAmount, ChargeMode mode) {
+        return submitRequestAt(carId, requestAmount, mode, stationClockService.currentStationTime());
+    }
+
+    @Transactional
+    public ChargingDtos.RequestResponse submitRequestAt(
+            String carId,
+            double requestAmount,
+            ChargeMode mode,
+            LocalDateTime requestTime
+    ) {
         Vehicle vehicle = vehicleRepository.findByCarId(carId)
                 .orElseThrow(() -> new BusinessException("vehicle not found"));
+        if (mode == null) {
+            throw new BusinessException("charge mode is required");
+        }
         if (requestAmount <= 0 || requestAmount > vehicle.getCarCapacity()) {
             throw new BusinessException("invalid request amount");
         }
@@ -75,7 +89,7 @@ public class ChargingService {
                 vehicle.getCarCapacity(),
                 requestAmount,
                 mode,
-                stationClockService.currentStationTime(),
+                requestTime,
                 queueNum,
                 sequence
         ));
@@ -84,11 +98,34 @@ public class ChargingService {
 
     @Transactional
     public ChargingDtos.RequestResponse modifyAmount(String carId, double amount) {
-        ChargingRequest request = activeRequest(carId);
+        return modifyAmountAt(carId, amount, stationClockService.currentStationTime(), false);
+    }
+
+    @Transactional
+    public ChargingDtos.RequestResponse modifyAmountAt(
+            String carId,
+            double amount,
+            LocalDateTime eventTime,
+            boolean ignoreMissing
+    ) {
+        Optional<ChargingRequest> maybeRequest = findActiveRequest(carId);
+        if (maybeRequest.isEmpty()) {
+            if (ignoreMissing) {
+                return null;
+            }
+            throw new BusinessException("active request not found");
+        }
+        ChargingRequest request = maybeRequest.get();
         if (request.getStatus() == RequestStatus.CHARGING) {
+            if (ignoreMissing) {
+                return toRequestResponse(request);
+            }
             throw new BusinessException("charging request cannot be modified after charging starts");
         }
         if (amount <= 0 || amount > request.getCarCapacity()) {
+            if (ignoreMissing) {
+                return toRequestResponse(request);
+            }
             throw new BusinessException("invalid request amount");
         }
         request.changeAmount(amount);
@@ -171,6 +208,22 @@ public class ChargingService {
         pileRepository.save(pile);
     }
 
+    @Transactional
+    public void cancelRequestAt(String carId, LocalDateTime eventTime) {
+        Optional<ChargingRequest> maybeRequest = findActiveRequest(carId);
+        if (maybeRequest.isEmpty()) {
+            return;
+        }
+        ChargingRequest request = maybeRequest.get();
+        if (request.getStatus() == RequestStatus.CHARGING) {
+            interruptChargingForCancellation(request, eventTime);
+        } else {
+            request.cancel();
+            requestRepository.save(request);
+        }
+        schedulerService.dispatchAll();
+    }
+
     public ChargingDtos.ChargingStateResponse queryChargingState(String carId) {
         ChargingRequest request = activeRequest(carId);
         ChargingSession session = sessionRepository.findFirstByCarIdAndStatusOrderByStartTimeDesc(
@@ -217,8 +270,38 @@ public class ChargingService {
     }
 
     private ChargingRequest activeRequest(String carId) {
-        return requestRepository.findFirstByCarIdAndStatusInOrderByRequestTimeDesc(carId, ACTIVE_REQUEST_STATUSES)
+        return findActiveRequest(carId)
                 .orElseThrow(() -> new BusinessException("active request not found"));
+    }
+
+    private Optional<ChargingRequest> findActiveRequest(String carId) {
+        return requestRepository.findFirstByCarIdAndStatusInOrderByRequestTimeDesc(carId, ACTIVE_REQUEST_STATUSES);
+    }
+
+    private void interruptChargingForCancellation(ChargingRequest request, LocalDateTime eventTime) {
+        ChargingSession session = sessionRepository.findFirstByCarIdAndStatusOrderByStartTimeDesc(
+                        request.getCarId(), SessionStatus.CHARGING)
+                .orElse(null);
+        if (session == null) {
+            request.cancel();
+            requestRepository.save(request);
+            return;
+        }
+        ChargingPile pile = pileRepository.findByPileId(session.getPileId())
+                .orElseThrow(() -> new BusinessException("pile not found"));
+        LocalDateTime endTime = eventTime.isAfter(session.getStartTime())
+                ? eventTime
+                : session.getStartTime().plusMinutes(1);
+        double elapsedHours = Math.max(0.0, Duration.between(session.getStartTime(), endTime).toSeconds() / 3600.0);
+        double amount = Math.min(request.getRequestAmount(), elapsedHours * pile.getPower());
+        session.interrupt(endTime, amount);
+        request.cancel();
+        pile.addChargingStats(elapsedHours, amount);
+        pile.release();
+        billingService.createBillForSession(session, pile, amount, endTime);
+        sessionRepository.save(session);
+        requestRepository.save(request);
+        pileRepository.save(pile);
     }
 
     private ChargingDtos.RequestResponse toRequestResponse(ChargingRequest request) {

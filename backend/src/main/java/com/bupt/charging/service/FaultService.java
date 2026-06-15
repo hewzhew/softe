@@ -62,13 +62,17 @@ public class FaultService {
 
     @Transactional
     public FaultDtos.FaultResult handleFault(String pileId, String strategy) {
+        return handleFaultAt(pileId, strategy, stationClockService.currentStationTime());
+    }
+
+    @Transactional
+    public FaultDtos.FaultResult handleFaultAt(String pileId, String strategy, LocalDateTime stationTime) {
         ChargingPile faultPile = pileRepository.findByPileId(pileId)
                 .orElseThrow(() -> new BusinessException("pile not found"));
         ChargeMode mode = faultPile.getMode();
-        LocalDateTime now = stationClockService.currentStationTime();
-        FaultRecord faultRecord = faultRecordRepository.save(new FaultRecord(pileId, strategy, now));
+        FaultRecord faultRecord = faultRecordRepository.save(new FaultRecord(pileId, strategy, stationTime));
 
-        int generatedDetailCount = interruptCurrentSessionIfNeeded(faultPile, now);
+        int generatedDetailCount = interruptCurrentSessionIfNeeded(faultPile, stationTime);
         List<ChargingRequest> candidates = collectCandidates(faultPile, strategy);
         List<ChargingRequest> ordered = orderCandidates(candidates, strategy);
         List<String> reorderedCars = ordered.stream().map(ChargingRequest::getCarId).toList();
@@ -89,13 +93,18 @@ public class FaultService {
 
     @Transactional
     public FaultDtos.FaultResult recoverPile(String pileId) {
+        return recoverPileAt(pileId, stationClockService.currentStationTime());
+    }
+
+    @Transactional
+    public FaultDtos.FaultResult recoverPileAt(String pileId, LocalDateTime stationTime) {
         ChargingPile pile = pileRepository.findByPileId(pileId)
                 .orElseThrow(() -> new BusinessException("pile not found"));
         pile.recover();
         pileRepository.save(pile);
         faultRecordRepository.findFirstByPileIdAndStatusOrderByFaultTimeDesc(pileId, "OPEN")
                 .ifPresent(record -> {
-                    record.close(stationClockService.currentStationTime(), "recovered");
+                    record.close(stationTime, "recovered");
                     faultRecordRepository.save(record);
                 });
         return new FaultDtos.FaultResult(pileId, "RECOVER", List.of(), List.of(), 0);

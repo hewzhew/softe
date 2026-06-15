@@ -24,6 +24,7 @@ public class StationRuntimeService {
     private final SchedulerService schedulerService;
     private final ChargingService chargingService;
     private final StationClockService stationClockService;
+    private final StationEventService stationEventService;
 
     public StationRuntimeService(
             ChargingSessionRepository sessionRepository,
@@ -32,7 +33,8 @@ public class StationRuntimeService {
             BillingService billingService,
             SchedulerService schedulerService,
             ChargingService chargingService,
-            StationClockService stationClockService
+            StationClockService stationClockService,
+            StationEventService stationEventService
     ) {
         this.sessionRepository = sessionRepository;
         this.requestRepository = requestRepository;
@@ -41,6 +43,7 @@ public class StationRuntimeService {
         this.schedulerService = schedulerService;
         this.chargingService = chargingService;
         this.stationClockService = stationClockService;
+        this.stationEventService = stationEventService;
     }
 
     @Transactional
@@ -50,45 +53,62 @@ public class StationRuntimeService {
             targetTime = cursorTime;
         }
 
-        schedulerService.dispatchAll();
-        startIdlePileHeads(cursorTime, targetTime);
+        LocalDateTime boundaryTime = cursorTime;
+        while (true) {
+            LocalDateTime nextEventTime = stationEventService.nextDueEventTime(targetTime).orElse(null);
+            LocalDateTime horizonTime = nextEventTime == null ? targetTime : nextEventTime;
 
-        boolean changed;
-        do {
-            changed = false;
-            ChargingSession nextSession = null;
-            ChargingRequest nextRequest = null;
-            ChargingPile nextPile = null;
-            LocalDateTime nextFinishTime = null;
-            List<ChargingSession> activeSessions = sessionRepository.findByStatusOrderByStartTimeAsc(
-                    SessionStatus.CHARGING);
-            for (ChargingSession session : activeSessions) {
-                ChargingRequest request = requestRepository.findById(session.getRequestId()).orElse(null);
-                ChargingPile pile = pileRepository.findByPileId(session.getPileId()).orElse(null);
-                if (request == null || pile == null) {
-                    continue;
-                }
-                LocalDateTime finishTime = finishTime(session, request, pile);
-                if (!finishTime.isAfter(targetTime)) {
-                    if (isEarlierDueSession(finishTime, pile, request, nextFinishTime, nextPile, nextRequest)) {
-                        nextSession = session;
-                        nextRequest = request;
-                        nextPile = pile;
-                        nextFinishTime = finishTime;
-                    }
-                }
-            }
+            schedulerService.dispatchAll();
+            startIdlePileHeads(boundaryTime, horizonTime);
+
+            DueSession nextSession = nextDueSession(horizonTime);
             if (nextSession != null) {
-                finishSession(nextSession, nextRequest, nextPile, nextFinishTime);
-                schedulerService.dispatchAll();
-                startIdlePileHeads(nextFinishTime, targetTime);
-                changed = true;
+                finishSession(nextSession.session(), nextSession.request(), nextSession.pile(), nextSession.finishTime());
+                boundaryTime = nextSession.finishTime();
+                continue;
             }
-        } while (changed);
+
+            if (nextEventTime != null) {
+                stationEventService.applyNextDueEvent(nextEventTime);
+                boundaryTime = nextEventTime;
+                continue;
+            }
+
+            break;
+        }
 
         schedulerService.dispatchAll();
         startIdlePileHeads(targetTime, targetTime);
         stationClockService.markRuntimeAdvancedTo(targetTime);
+    }
+
+    private DueSession nextDueSession(LocalDateTime targetTime) {
+        ChargingSession nextSession = null;
+        ChargingRequest nextRequest = null;
+        ChargingPile nextPile = null;
+        LocalDateTime nextFinishTime = null;
+        List<ChargingSession> activeSessions = sessionRepository.findByStatusOrderByStartTimeAsc(
+                SessionStatus.CHARGING);
+        for (ChargingSession session : activeSessions) {
+            ChargingRequest request = requestRepository.findById(session.getRequestId()).orElse(null);
+            ChargingPile pile = pileRepository.findByPileId(session.getPileId()).orElse(null);
+            if (request == null || pile == null) {
+                continue;
+            }
+            LocalDateTime finishTime = finishTime(session, request, pile);
+            if (!finishTime.isAfter(targetTime)) {
+                if (isEarlierDueSession(finishTime, pile, request, nextFinishTime, nextPile, nextRequest)) {
+                    nextSession = session;
+                    nextRequest = request;
+                    nextPile = pile;
+                    nextFinishTime = finishTime;
+                }
+            }
+        }
+        if (nextSession == null) {
+            return null;
+        }
+        return new DueSession(nextSession, nextRequest, nextPile, nextFinishTime);
     }
 
     private LocalDateTime finishTime(ChargingSession session, ChargingRequest request, ChargingPile pile) {
@@ -156,5 +176,13 @@ public class StationRuntimeService {
 
     private LocalDateTime max(LocalDateTime left, LocalDateTime right) {
         return left.isAfter(right) ? left : right;
+    }
+
+    private record DueSession(
+            ChargingSession session,
+            ChargingRequest request,
+            ChargingPile pile,
+            LocalDateTime finishTime
+    ) {
     }
 }

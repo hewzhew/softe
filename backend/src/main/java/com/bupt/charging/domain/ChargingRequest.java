@@ -98,6 +98,11 @@ public class ChargingRequest {
         this.status = RequestStatus.FINISHED;
     }
 
+    public void cancel() {
+        clearPileAssignment();
+        this.status = RequestStatus.CANCELLED;
+    }
+
     public void interrupt() {
         this.status = RequestStatus.INTERRUPTED;
         this.faultAffected = true;

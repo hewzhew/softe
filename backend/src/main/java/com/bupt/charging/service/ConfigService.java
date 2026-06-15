@@ -13,6 +13,7 @@ import com.bupt.charging.repository.DetailedListRepository;
 import com.bupt.charging.repository.FaultRecordRepository;
 import com.bupt.charging.repository.StationClockRepository;
 import com.bupt.charging.repository.StationConfigRepository;
+import com.bupt.charging.repository.StationEventRepository;
 import com.bupt.charging.repository.TariffRuleRepository;
 import com.bupt.charging.repository.UserAccountRepository;
 import com.bupt.charging.repository.VehicleRepository;
@@ -32,6 +33,7 @@ public class ConfigService {
     private final VehicleRepository vehicleRepository;
     private final UserAccountRepository userAccountRepository;
     private final StationClockRepository stationClockRepository;
+    private final StationEventRepository stationEventRepository;
 
     public ConfigService(
             StationConfigRepository configRepository,
@@ -44,7 +46,8 @@ public class ConfigService {
             FaultRecordRepository faultRecordRepository,
             VehicleRepository vehicleRepository,
             UserAccountRepository userAccountRepository,
-            StationClockRepository stationClockRepository
+            StationClockRepository stationClockRepository,
+            StationEventRepository stationEventRepository
     ) {
         this.configRepository = configRepository;
         this.tariffRuleRepository = tariffRuleRepository;
@@ -57,6 +60,7 @@ public class ConfigService {
         this.vehicleRepository = vehicleRepository;
         this.userAccountRepository = userAccountRepository;
         this.stationClockRepository = stationClockRepository;
+        this.stationEventRepository = stationEventRepository;
     }
 
     @Transactional
@@ -94,6 +98,7 @@ public class ConfigService {
         pileRepository.deleteAll();
         vehicleRepository.deleteAll();
         userAccountRepository.deleteAll();
+        stationEventRepository.deleteAll();
         stationClockRepository.deleteAll();
         tariffRuleRepository.deleteAll();
         configRepository.deleteAll();
