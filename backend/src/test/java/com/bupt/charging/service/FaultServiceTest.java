@@ -7,12 +7,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.bupt.charging.domain.ChargeMode;
 import com.bupt.charging.domain.ChargingPile;
 import com.bupt.charging.domain.ChargingRequest;
+import com.bupt.charging.domain.ChargingSession;
+import com.bupt.charging.domain.RequestStatus;
 import com.bupt.charging.dto.ConfigDtos;
 import com.bupt.charging.dto.FaultDtos;
 import com.bupt.charging.dto.RuntimeDtos;
 import com.bupt.charging.repository.BillRepository;
 import com.bupt.charging.repository.ChargingPileRepository;
 import com.bupt.charging.repository.ChargingRequestRepository;
+import com.bupt.charging.repository.ChargingSessionRepository;
 import com.bupt.charging.repository.FaultRecordRepository;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -46,6 +49,9 @@ class FaultServiceTest {
 
     @Autowired
     private ChargingRequestRepository requestRepository;
+
+    @Autowired
+    private ChargingSessionRepository sessionRepository;
 
     @Autowired
     private ChargingPileRepository pileRepository;
@@ -160,6 +166,39 @@ class FaultServiceTest {
                 .getGeneratedAt());
     }
 
+    @Test
+    void recoveryRedistributesQueuedCarsToRecoveredPileWithoutMovingChargingHeads() {
+        configService.resetDemoData();
+        configService.initialize(new ConfigDtos.UpdateConfigRequest(0, 3, 10, 3, 30.0, 10.0));
+        LocalDateTime baseTime = LocalDateTime.of(2026, 6, 1, 11, 15);
+
+        ChargingPile t1 = pileRepository.findByPileId("T-1").orElseThrow();
+        ChargingPile t2 = pileRepository.findByPileId("T-2").orElseThrow();
+        ChargingPile t3 = pileRepository.findByPileId("T-3").orElseThrow();
+        t1.markFault();
+        pileRepository.save(t1);
+        saveChargingRequest("V17", 10.0, "T-2", 1, baseTime.minusMinutes(20), t2);
+        saveQueuedRequest("V18", 7.5, "T-2", 2, baseTime.minusMinutes(15));
+        saveQueuedRequest("V25", 15.0, "T-2", 3, baseTime.minusMinutes(10));
+        saveChargingRequest("V26", 20.0, "T-3", 1, baseTime.minusMinutes(10), t3);
+
+        faultService.recoverPileAt("T-1", baseTime);
+
+        List<String> recoveredQueue = requestRepository
+                .findByAssignedPileIdAndStatusOrderByPileQueuePositionAsc("T-1", RequestStatus.PILE_QUEUE)
+                .stream()
+                .map(ChargingRequest::getCarId)
+                .toList();
+        ChargingRequest v17 = requestRepository.findFirstByCarIdOrderByRequestTimeDesc("V17").orElseThrow();
+        ChargingRequest v26 = requestRepository.findFirstByCarIdOrderByRequestTimeDesc("V26").orElseThrow();
+
+        assertFalse(recoveredQueue.isEmpty());
+        assertEquals(RequestStatus.CHARGING, v17.getStatus());
+        assertEquals("T-2", v17.getAssignedPileId());
+        assertEquals(RequestStatus.CHARGING, v26.getStatus());
+        assertEquals("T-3", v26.getAssignedPileId());
+    }
+
     private void register(String carId) {
         accountService.createNewAccount(carId, carId, 80.0);
         accountService.setPassword(carId, "123456");
@@ -168,5 +207,33 @@ class FaultServiceTest {
     private ChargingRequest request(String carId, LocalDateTime requestTime) {
         ChargingPile pile = pileRepository.findByPileId("F-1").orElseThrow();
         return new ChargingRequest(carId, 80.0, 30.0, pile.getMode(), requestTime, "F-" + carId, 1);
+    }
+
+    private ChargingRequest saveQueuedRequest(
+            String carId,
+            double amount,
+            String pileId,
+            int position,
+            LocalDateTime requestTime
+    ) {
+        ChargingRequest request = new ChargingRequest(carId, 120.0, amount, ChargeMode.SLOW, requestTime, "T-" + carId, position);
+        request.assignToPile(pileId, position);
+        return requestRepository.save(request);
+    }
+
+    private void saveChargingRequest(
+            String carId,
+            double amount,
+            String pileId,
+            int position,
+            LocalDateTime requestTime,
+            ChargingPile pile
+    ) {
+        ChargingRequest request = saveQueuedRequest(carId, amount, pileId, position, requestTime);
+        request.startCharging();
+        requestRepository.save(request);
+        pile.markWorking(carId);
+        pileRepository.save(pile);
+        sessionRepository.save(new ChargingSession(request.getId(), carId, pileId, requestTime));
     }
 }

@@ -114,6 +114,11 @@ public class ChargingRequest {
         this.faultAffected = true;
     }
 
+    public void returnToWaitingArea() {
+        clearPileAssignment();
+        this.status = RequestStatus.WAITING_AREA;
+    }
+
     public Long getId() {
         return id;
     }

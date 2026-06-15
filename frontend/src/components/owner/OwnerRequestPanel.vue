@@ -22,7 +22,6 @@
         <el-input-number
           :model-value="form.requestAmount"
           :min="1"
-          :max="vehicle?.carCapacity || 200"
           @update:model-value="$emit('update:requestAmount', $event)"
         />
       </el-form-item>

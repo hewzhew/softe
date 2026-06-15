@@ -4,6 +4,7 @@ import com.bupt.charging.dto.AccountDtos;
 import com.bupt.charging.dto.ApiResult;
 import com.bupt.charging.service.AccountService;
 import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -17,6 +18,11 @@ public class AccountController {
 
     public AccountController(AccountService accountService) {
         this.accountService = accountService;
+    }
+
+    @GetMapping("/{carId}")
+    public ApiResult<AccountDtos.AccountResponse> find(@PathVariable String carId) {
+        return ApiResult.ok(accountService.findAccount(carId));
     }
 
     @PostMapping

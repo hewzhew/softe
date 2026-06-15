@@ -193,6 +193,21 @@ class StationEventServiceTest {
     }
 
     @Test
+    void manualFutureEventRejectsRequestAmountGreaterThanProvidedCapacity() {
+        assertThrows(BusinessException.class, () -> stationEventService.addManualChargeRequest(
+                new RuntimeDtos.ManualChargeRequestEvent(
+                        LocalDateTime.of(2026, 6, 1, 6, 30),
+                        "MANUAL-OVER-CAPACITY",
+                        null,
+                        80.0,
+                        ChargeMode.FAST,
+                        100.0,
+                        null
+                )));
+        assertEquals(0, eventRepository.count());
+    }
+
+    @Test
     void courseImportRejectsPendingManualSubmitForSameTarget() {
         stationEventService.addManualChargeRequest(manualEvent("V1", LocalDateTime.of(2026, 6, 1, 6, 30)));
 

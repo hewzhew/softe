@@ -1,5 +1,6 @@
 package com.bupt.charging.dto;
 
+import com.bupt.charging.domain.AccountRole;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Positive;
 
@@ -17,6 +18,6 @@ public final class AccountDtos {
     public record SetPasswordRequest(@NotBlank String password) {
     }
 
-    public record AccountResponse(String carId, String userName, double carCapacity, String status) {
+    public record AccountResponse(String carId, String userName, double carCapacity, String status, AccountRole role) {
     }
 }

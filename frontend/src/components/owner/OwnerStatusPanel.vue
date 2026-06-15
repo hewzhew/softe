@@ -27,6 +27,8 @@
 
     <div class="action-row">
       <el-button @click="$emit('refresh')">刷新状态</el-button>
+      <el-button :disabled="!canModifyMode" @click="$emit('modifyMode', 'FAST')">改为快充</el-button>
+      <el-button :disabled="!canModifyMode" @click="$emit('modifyMode', 'SLOW')">改为慢充</el-button>
       <el-button type="primary" :disabled="!canStart" @click="$emit('startCharging')">开始充电</el-button>
       <el-button type="success" :disabled="!canEnd" @click="$emit('endCharging')">结束并结算</el-button>
     </div>
@@ -42,7 +44,7 @@ const props = defineProps({
   carState: { type: Object, default: null }
 })
 
-defineEmits(['refresh', 'startCharging', 'endCharging'])
+defineEmits(['refresh', 'modifyMode', 'startCharging', 'endCharging'])
 
 const title = computed(() => (props.carState?.carState ? '本次充电服务' : '暂无进行中的服务'))
 const canStart = computed(() =>
@@ -51,4 +53,5 @@ const canStart = computed(() =>
   && (props.carState?.carNumberBeforePosition ?? 0) === 0
 )
 const canEnd = computed(() => props.carState?.carState === 'CHARGING')
+const canModifyMode = computed(() => ['WAITING_AREA', 'PILE_QUEUE'].includes(props.carState?.carState))
 </script>

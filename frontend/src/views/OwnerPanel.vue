@@ -3,9 +3,12 @@
     <OwnerLoginCard
       v-if="stage === OWNER_STAGES.ANONYMOUS"
       v-model:car-id="ownerForm.carId"
+      v-model:user-name="ownerForm.userName"
+      v-model:car-capacity="ownerForm.carCapacity"
       v-model:password="ownerForm.password"
       @login="login"
       @quick-login="quickLogin"
+      @register="registerVehicle"
     />
 
     <template v-else>
@@ -43,6 +46,7 @@
             v-if="[OWNER_STAGES.WAITING, OWNER_STAGES.CHARGING, OWNER_STAGES.COMPLETED].includes(stage)"
             :car-state="carState"
             @refresh="queryState"
+            @modify-mode="modifyMode"
             @start-charging="startCharging"
             @end-charging="endCharging"
           />
@@ -70,7 +74,15 @@ import OwnerRequestPanel from '../components/owner/OwnerRequestPanel.vue'
 import OwnerStatusPanel from '../components/owner/OwnerStatusPanel.vue'
 import OwnerVehiclePanel from '../components/owner/OwnerVehiclePanel.vue'
 import { notifyStationChanged, stationEvents } from '../stores/stationEvents'
+import { validateRequestAmount } from '../utils/ownerValidation'
 import { OWNER_STAGES, deriveOwnerStage, ownerPrimaryAction } from '../utils/ownerWorkflow'
+
+const props = defineProps({
+  session: {
+    type: Object,
+    default: null
+  }
+})
 
 const ownerForm = reactive({
   carId: 'CAR-1',
@@ -96,7 +108,21 @@ const stage = computed(() => deriveOwnerStage({
 }))
 
 async function login() {
-  await ensureVehicle({ successMessage: '已进入车辆门户' })
+  if (!ownerForm.carId) {
+    ElMessage.warning('请填写车辆编号')
+    return
+  }
+  const account = await runAction(
+    () => api.getAccount(ownerForm.carId),
+    '',
+    { silentError: true, silent: true }
+  )
+  if (!account) {
+    ElMessage.warning('车辆尚未注册，请先使用“注册车辆”')
+    return
+  }
+  enterVehicle(account)
+  ElMessage.success('已登录车辆门户')
 }
 
 async function quickLogin() {
@@ -105,7 +131,17 @@ async function quickLogin() {
   ownerForm.password = ownerForm.password || '123456'
   ownerForm.carCapacity = ownerForm.carCapacity || 80
   ownerForm.requestAmount = ownerForm.requestAmount || 30
-  await ensureVehicle({ successMessage: '已进入 CAR-1' })
+  const account = await runAction(
+    () => api.getAccount(ownerForm.carId),
+    '',
+    { silentError: true, silent: true }
+  )
+  if (account) {
+    enterVehicle(account)
+    ElMessage.success('已进入 CAR-1')
+    return
+  }
+  await registerVehicle({ successMessage: '已创建并进入 CAR-1' })
 }
 
 function logout() {
@@ -147,6 +183,23 @@ function enterVehicle(account = null) {
   }
   queryState({ silent: true })
   queryBills({ silent: true })
+}
+
+async function enterAuthenticatedVehicle(carId) {
+  if (!carId) {
+    return
+  }
+  ownerForm.carId = carId
+  const account = await runAction(
+    () => api.getAccount(carId),
+    '',
+    { silentError: true, silent: true }
+  )
+  if (account) {
+    ownerForm.userName = account.userName || ownerForm.userName
+    ownerForm.carCapacity = account.carCapacity || ownerForm.carCapacity
+    enterVehicle(account)
+  }
 }
 
 async function updatePasswordSilently() {
@@ -194,6 +247,36 @@ async function ensureVehicle(options = {}) {
   }
 }
 
+async function registerVehicle(options = {}) {
+  if (!ownerForm.carId) {
+    ElMessage.warning('请填写车辆编号')
+    return null
+  }
+  if (!ownerForm.userName) {
+    ElMessage.warning('请填写车主姓名')
+    return null
+  }
+  try {
+    const account = await api.createAccount({
+      carId: ownerForm.carId,
+      userName: ownerForm.userName,
+      carCapacity: ownerForm.carCapacity
+    })
+    await updatePasswordSilently()
+    enterVehicle(account)
+    notifyStationChanged('owner-account')
+    ElMessage.success(options.successMessage || '注册成功，已进入车辆门户')
+    return account
+  } catch (error) {
+    if (alreadyRegistered(error)) {
+      ElMessage.warning('车辆已注册，请切换到“登录车辆”')
+      return null
+    }
+    ElMessage.error(error.message || '注册失败')
+    return null
+  }
+}
+
 async function createVehicle() {
   await ensureVehicle({
     successMessage: '车辆已添加',
@@ -202,6 +285,11 @@ async function createVehicle() {
 }
 
 async function submitRequest() {
+  const validation = validateRequestAmount(ownerForm.requestAmount, vehicle.value?.carCapacity)
+  if (!validation.valid) {
+    ElMessage.warning(validation.message)
+    return
+  }
   const result = await runAction(() => api.submitRequest({
     carId: ownerForm.carId,
     requestAmount: ownerForm.requestAmount,
@@ -211,6 +299,18 @@ async function submitRequest() {
     ownerForm.actualAmount = ownerForm.requestAmount
     carState.value = result
     notifyStationChanged('owner-request')
+    await queryState({ silent: true })
+  }
+}
+
+async function modifyMode(mode) {
+  const result = await runAction(
+    () => api.modifyMode(ownerForm.carId, { mode }),
+    mode === 'FAST' ? '已改为快充' : '已改为慢充'
+  )
+  if (result) {
+    ownerForm.mode = mode
+    notifyStationChanged('owner-mode')
     await queryState({ silent: true })
   }
 }
@@ -295,4 +395,10 @@ watch(() => stationEvents.revision, async () => {
     await queryBills({ silent: true })
   }
 })
+
+watch(() => props.session?.carId, async (carId) => {
+  if (carId) {
+    await enterAuthenticatedVehicle(carId)
+  }
+}, { immediate: true })
 </script>

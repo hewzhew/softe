@@ -9,13 +9,14 @@ describe('hash route helpers', () => {
     assert.equal(normalizeRoute('station'), ROUTES.STATION)
   })
 
-  it('falls back unknown or blank routes to station', () => {
-    assert.equal(normalizeRoute(''), ROUTES.STATION)
-    assert.equal(normalizeRoute(null), ROUTES.STATION)
-    assert.equal(normalizeRoute('#/unknown'), ROUTES.STATION)
+  it('falls back unknown or blank routes to login', () => {
+    assert.equal(normalizeRoute(''), ROUTES.LOGIN)
+    assert.equal(normalizeRoute(null), ROUTES.LOGIN)
+    assert.equal(normalizeRoute('#/unknown'), ROUTES.LOGIN)
   })
 
   it('maps routes to workspace labels', () => {
+    assert.equal(routeLabel(ROUTES.LOGIN), '登录')
     assert.equal(routeLabel(ROUTES.OWNER), '车主自助')
     assert.equal(routeLabel(ROUTES.ADMIN), '运营管理')
     assert.equal(routeLabel(ROUTES.STATION), '站点运行')
@@ -33,8 +34,8 @@ describe('hash route helpers', () => {
       assert.equal(setHashRoute(ROUTES.OWNER), ROUTES.OWNER)
       assert.equal(globalThis.window.location.hash, '#/owner')
 
-      assert.equal(setHashRoute('#/bad'), ROUTES.STATION)
-      assert.equal(globalThis.window.location.hash, '#/station')
+      assert.equal(setHashRoute('#/bad'), ROUTES.LOGIN)
+      assert.equal(globalThis.window.location.hash, '#/login')
     } finally {
       if (originalWindow) {
         Object.defineProperty(globalThis, 'window', originalWindow)

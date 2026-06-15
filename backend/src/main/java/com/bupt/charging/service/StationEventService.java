@@ -97,7 +97,7 @@ public class StationEventService {
             throw new BusinessException("invalid request amount");
         }
         if (amount > capacity) {
-            capacity = amount;
+            throw new BusinessException("request amount exceeds vehicle capacity");
         }
         LocalDateTime eventTime = request.eventTime() == null
                 ? stationClockService.currentStationTime()
@@ -245,7 +245,7 @@ public class StationEventService {
         ChargeMode mode = event.getMode() == null ? ChargeMode.FAST : event.getMode();
         double capacity = event.getCarCapacity() > 0.0 ? event.getCarCapacity() : defaultCapacity(mode);
         if (event.getAmount() > capacity) {
-            capacity = event.getAmount();
+            throw new BusinessException("request amount exceeds vehicle capacity");
         }
         accountService.createNewAccount(event.getTargetId(), textOrDefault(event.getOwnerName(), event.getTargetId()), capacity);
     }

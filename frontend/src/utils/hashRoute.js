@@ -1,10 +1,12 @@
 export const ROUTES = {
+  LOGIN: '/login',
   STATION: '/station',
   OWNER: '/owner',
   ADMIN: '/admin'
 }
 
 const labels = {
+  [ROUTES.LOGIN]: '登录',
   [ROUTES.STATION]: '站点运行',
   [ROUTES.OWNER]: '车主自助',
   [ROUTES.ADMIN]: '运营管理'
@@ -14,7 +16,7 @@ export function normalizeRoute(value) {
   const raw = String(value || '').trim().replace(/^#/, '')
   const route = raw.startsWith('/') ? raw : `/${raw}`
 
-  return Object.values(ROUTES).includes(route) ? route : ROUTES.STATION
+  return Object.values(ROUTES).includes(route) ? route : ROUTES.LOGIN
 }
 
 export function routeLabel(route) {

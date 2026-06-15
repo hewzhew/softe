@@ -56,6 +56,46 @@ class RestApiSmokeTest {
     }
 
     @Test
+    void authLoginAndMeReturnRoleSession() throws Exception {
+        ResponseEntity<String> accountResponse = restTemplate.postForEntity(
+                "/api/accounts",
+                Map.of("carId", "CAR-LOGIN-API", "userName", "Login API", "carCapacity", 80.0),
+                String.class
+        );
+        assertEquals(HttpStatus.OK, accountResponse.getStatusCode());
+        ResponseEntity<String> passwordResponse = restTemplate.postForEntity(
+                "/api/accounts/CAR-LOGIN-API/password",
+                Map.of("password", "secret"),
+                String.class
+        );
+        assertEquals(HttpStatus.OK, passwordResponse.getStatusCode());
+
+        ResponseEntity<String> loginResponse = restTemplate.postForEntity(
+                "/api/auth/login",
+                Map.of("loginName", "CAR-LOGIN-API", "password", "secret"),
+                String.class
+        );
+
+        assertEquals(HttpStatus.OK, loginResponse.getStatusCode());
+        JsonNode loginData = objectMapper.readTree(loginResponse.getBody()).path("data");
+        assertEquals("OWNER", loginData.path("role").asText());
+        assertEquals("CAR-LOGIN-API", loginData.path("carId").asText());
+
+        java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
+                .uri(java.net.URI.create("http://localhost:" + port + "/api/auth/me"))
+                .header("X-Session-Token", loginData.path("token").asText())
+                .GET()
+                .build();
+        java.net.http.HttpResponse<String> response = java.net.http.HttpClient.newHttpClient()
+                .send(request, java.net.http.HttpResponse.BodyHandlers.ofString());
+
+        assertEquals(200, response.statusCode());
+        JsonNode meData = objectMapper.readTree(response.body()).path("data");
+        assertEquals("OWNER", meData.path("role").asText());
+        assertEquals("CAR-LOGIN-API", meData.path("carId").asText());
+    }
+
+    @Test
     void seedCreatesWaitingRequestsAndDispatchMovesThemToPileQueues() throws Exception {
         ResponseEntity<String> seedResponse = restTemplate.postForEntity("/api/demo/seed", null, String.class);
 

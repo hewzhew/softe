@@ -354,6 +354,31 @@ class StationRuntimeServiceTest {
         assertEquals(RequestStatus.WAITING_AREA, chargingService.queryCarState("CAR-WAIT").carState());
     }
 
+    @Test
+    void schedulerCountsActiveChargingCarWhenChoosingSlowPile() {
+        configService.resetDemoData();
+        configService.initialize(new ConfigDtos.UpdateConfigRequest(0, 3, 10, 2, 30.0, 10.0));
+        stationClockService.resetClock(new RuntimeDtos.SetClockRequest(
+                LocalDateTime.of(2026, 6, 2, 0, 30),
+                1.0,
+                false,
+                null,
+                null
+        ));
+
+        accountService.createNewAccount("V20", "V20", 120.0);
+        accountService.createNewAccount("V21", "V21", 120.0);
+        chargingService.submitRequest("V20", 95.0, ChargeMode.SLOW);
+        schedulerService.dispatchAll();
+        stationRuntimeService.advanceTo(LocalDateTime.of(2026, 6, 2, 0, 30));
+
+        chargingService.submitRequest("V21", 35.0, ChargeMode.SLOW);
+        schedulerService.dispatchAll();
+
+        assertEquals(RequestStatus.CHARGING, chargingService.queryCarState("V20").carState());
+        assertEquals("T-2", chargingService.queryCarState("V21").assignedPileId());
+    }
+
     @TestConfiguration
     static class TestConfig {
         @Bean

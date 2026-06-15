@@ -2,6 +2,8 @@ package com.bupt.charging.domain;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -18,6 +20,10 @@ public class UserAccount {
 
     private String passwordHash;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private AccountRole role;
+
     @Column(nullable = false)
     private String status;
 
@@ -28,7 +34,12 @@ public class UserAccount {
     }
 
     public UserAccount(String userName, LocalDateTime createdAt) {
+        this(userName, AccountRole.OWNER, createdAt);
+    }
+
+    public UserAccount(String userName, AccountRole role, LocalDateTime createdAt) {
         this.userName = userName;
+        this.role = role;
         this.status = "PENDING_PASSWORD";
         this.createdAt = createdAt;
     }
@@ -48,6 +59,10 @@ public class UserAccount {
 
     public String getPasswordHash() {
         return passwordHash;
+    }
+
+    public AccountRole getRole() {
+        return role;
     }
 
     public String getStatus() {

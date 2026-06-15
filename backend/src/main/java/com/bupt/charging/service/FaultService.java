@@ -20,6 +20,7 @@ import com.bupt.charging.support.BusinessException;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,6 +38,7 @@ public class FaultService {
     private final PriorityFaultStrategy priorityFaultStrategy;
     private final TimeOrderFaultStrategy timeOrderFaultStrategy;
     private final StationClockService stationClockService;
+    private final SchedulerService schedulerService;
 
     public FaultService(
             ChargingPileRepository pileRepository,
@@ -47,7 +49,8 @@ public class FaultService {
             BillingService billingService,
             PriorityFaultStrategy priorityFaultStrategy,
             TimeOrderFaultStrategy timeOrderFaultStrategy,
-            StationClockService stationClockService
+            StationClockService stationClockService,
+            SchedulerService schedulerService
     ) {
         this.pileRepository = pileRepository;
         this.requestRepository = requestRepository;
@@ -58,6 +61,7 @@ public class FaultService {
         this.priorityFaultStrategy = priorityFaultStrategy;
         this.timeOrderFaultStrategy = timeOrderFaultStrategy;
         this.stationClockService = stationClockService;
+        this.schedulerService = schedulerService;
     }
 
     @Transactional
@@ -100,14 +104,16 @@ public class FaultService {
     public FaultDtos.FaultResult recoverPileAt(String pileId, LocalDateTime stationTime) {
         ChargingPile pile = pileRepository.findByPileId(pileId)
                 .orElseThrow(() -> new BusinessException("pile not found"));
+        ChargeMode mode = pile.getMode();
         pile.recover();
         pileRepository.save(pile);
+        List<String> movedCars = redistributeQueuedCarsAfterRecovery(mode);
         faultRecordRepository.findFirstByPileIdAndStatusOrderByFaultTimeDesc(pileId, "OPEN")
                 .ifPresent(record -> {
-                    record.close(stationTime, "recovered");
+                    record.close(stationTime, movedCars.isEmpty() ? "recovered" : "recovered:" + String.join(",", movedCars));
                     faultRecordRepository.save(record);
                 });
-        return new FaultDtos.FaultResult(pileId, "RECOVER", List.of(), List.of(), 0);
+        return new FaultDtos.FaultResult(pileId, "RECOVER", movedCars, List.of(), 0);
     }
 
     private int interruptCurrentSessionIfNeeded(ChargingPile faultPile, LocalDateTime now) {
@@ -196,5 +202,29 @@ public class FaultService {
                             pile.getPileId(), RequestStatus.PILE_QUEUE)));
         }
         return queues;
+    }
+
+    private List<String> redistributeQueuedCarsAfterRecovery(ChargeMode mode) {
+        List<ChargingPile> availablePiles = pileRepository.findByModeOrderByPileIdAsc(mode).stream()
+                .filter(ChargingPile::isAvailableForQueue)
+                .toList();
+        List<ChargingRequest> movable = availablePiles.stream()
+                .flatMap(pile -> requestRepository.findByAssignedPileIdAndStatusOrderByPileQueuePositionAsc(
+                        pile.getPileId(),
+                        RequestStatus.PILE_QUEUE
+                ).stream())
+                .sorted(Comparator
+                        .comparing(ChargingRequest::getRequestTime)
+                        .thenComparingLong(ChargingRequest::getQueueSequence)
+                        .thenComparing(ChargingRequest::getCarId))
+                .toList();
+        if (movable.isEmpty()) {
+            return List.of();
+        }
+        List<String> movedCars = movable.stream().map(ChargingRequest::getCarId).toList();
+        movable.forEach(ChargingRequest::returnToWaitingArea);
+        requestRepository.saveAll(movable);
+        schedulerService.dispatchAll();
+        return movedCars;
     }
 }

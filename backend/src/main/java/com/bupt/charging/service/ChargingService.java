@@ -21,6 +21,7 @@ import com.bupt.charging.support.BusinessException;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.stereotype.Service;
@@ -155,7 +156,16 @@ public class ChargingService {
                 .orElseThrow(() -> new BusinessException("request not found"));
         int before = 0;
         if (request.getStatus() == RequestStatus.PILE_QUEUE && request.getAssignedPileId() != null) {
-            before = Math.max(0, request.getPileQueuePosition() - 1);
+            before = (int) requestRepository.findByAssignedPileIdAndStatusInOrderByPileQueuePositionAsc(
+                            request.getAssignedPileId(),
+                            List.of(RequestStatus.CHARGING, RequestStatus.PILE_QUEUE)
+                    ).stream()
+                    .sorted(Comparator
+                            .comparingInt((ChargingRequest item) -> item.getStatus() == RequestStatus.CHARGING ? 0 : 1)
+                            .thenComparingInt(ChargingRequest::getPileQueuePosition)
+                            .thenComparing(ChargingRequest::getRequestTime))
+                    .takeWhile(item -> !item.getCarId().equals(carId))
+                    .count();
         } else if (request.getStatus() == RequestStatus.WAITING_AREA) {
             before = (int) requestRepository.findByModeAndStatusOrderByRequestTimeAsc(
                             request.getMode(), RequestStatus.WAITING_AREA).stream()
@@ -262,13 +272,17 @@ public class ChargingService {
             throw new BusinessException("session is not on this pile");
         }
 
-        LocalDateTime endTime = session.getStartTime()
-                .plusMinutes(Math.max(1, Math.round((actualAmount / pile.getPower()) * 60.0)));
-        session.finish(endTime, actualAmount);
+        LocalDateTime endTime = stationClockService.currentStationTime();
+        if (!endTime.isAfter(session.getStartTime())) {
+            endTime = session.getStartTime().plusMinutes(1);
+        }
+        double elapsedHours = Math.max(1.0 / 60.0, Duration.between(session.getStartTime(), endTime).toSeconds() / 3600.0);
+        double billedAmount = Math.min(request.getRequestAmount(), elapsedHours * pile.getPower());
+        session.finish(endTime, billedAmount);
         request.finish();
-        pile.addChargingStats(actualAmount / pile.getPower(), actualAmount);
+        pile.addChargingStats(elapsedHours, billedAmount);
         pile.release();
-        BillingDtos.BillResponse bill = billingService.createBillForSession(session, pile, actualAmount, endTime);
+        BillingDtos.BillResponse bill = billingService.createBillForSession(session, pile, billedAmount, endTime);
         sessionRepository.save(session);
         requestRepository.save(request);
         pileRepository.save(pile);

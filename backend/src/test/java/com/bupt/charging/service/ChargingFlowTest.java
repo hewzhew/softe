@@ -9,7 +9,9 @@ import com.bupt.charging.domain.RequestStatus;
 import com.bupt.charging.dto.BillingDtos;
 import com.bupt.charging.dto.ChargingDtos;
 import com.bupt.charging.dto.ConfigDtos;
+import com.bupt.charging.dto.RuntimeDtos;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -30,6 +32,9 @@ class ChargingFlowTest {
 
     @Autowired
     private SchedulerService schedulerService;
+
+    @Autowired
+    private StationClockService stationClockService;
 
     @Autowired
     private BillingService billingService;
@@ -54,5 +59,35 @@ class ChargingFlowTest {
 
         assertTrue(bill.totalFee().compareTo(BigDecimal.ZERO) > 0);
         assertFalse(billingService.queryBills("CAR-1", bill.date()).isEmpty());
+    }
+
+    @Test
+    void endingChargingUsesElapsedStationTimeInsteadOfSubmittedFullAmount() {
+        configService.resetDemoData();
+        configService.initialize(new ConfigDtos.UpdateConfigRequest(1, 0, 10, 2, 30.0, 10.0));
+        stationClockService.resetClock(new RuntimeDtos.SetClockRequest(
+                LocalDateTime.of(2026, 6, 15, 6, 0),
+                1.0,
+                false,
+                null,
+                null
+        ));
+
+        accountService.createNewAccount("CAR-PARTIAL", "Partial", 80.0);
+        chargingService.submitRequest("CAR-PARTIAL", 80.0, ChargeMode.FAST);
+        schedulerService.dispatchAll();
+        chargingService.startCharging("CAR-PARTIAL", "F-1");
+        stationClockService.setClock(new RuntimeDtos.SetClockRequest(
+                LocalDateTime.of(2026, 6, 15, 6, 5),
+                1.0,
+                false,
+                null,
+                null
+        ));
+
+        BillingDtos.BillResponse bill = chargingService.endCharging("CAR-PARTIAL", "F-1", 80.0);
+
+        assertEquals(2.5, bill.chargeAmount(), 0.001);
+        assertEquals(5.0 / 60.0, bill.chargeDuration(), 0.001);
     }
 }

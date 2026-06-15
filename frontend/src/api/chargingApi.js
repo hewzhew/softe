@@ -1,6 +1,10 @@
-import { http, unwrap } from './client'
+import { http, unwrap } from './client.js'
 
 export const api = {
+  login: (payload) => unwrap(http.post('/auth/login', payload)),
+  currentUser: () => unwrap(http.get('/auth/me')),
+  logout: () => unwrap(http.post('/auth/logout')),
+
   getConfig: () => unwrap(http.get('/config')),
   updateConfig: (payload) => unwrap(http.put('/config', payload)),
   resetDemo: () => unwrap(http.post('/demo/reset')),
@@ -8,6 +12,7 @@ export const api = {
   getSnapshot: () => unwrap(http.get('/demo/snapshot')),
 
   createAccount: (payload) => unwrap(http.post('/accounts', payload)),
+  getAccount: (carId) => unwrap(http.get(`/accounts/${carId}`)),
   setPassword: (carId, payload) => unwrap(http.post(`/accounts/${carId}/password`, payload)),
 
   submitRequest: (payload) => unwrap(http.post('/charging/requests', payload)),

@@ -10,6 +10,6 @@ public interface SchedulingStrategy {
     Optional<Assignment> select(
             ChargingRequest request,
             List<ChargingPile> candidatePiles,
-            Map<String, List<ChargingRequest>> currentQueues
+            Map<String, PileQueueLoad> currentLoads
     );
 }
