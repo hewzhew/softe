@@ -7,6 +7,7 @@ import com.bupt.charging.domain.ChargingSession;
 import com.bupt.charging.domain.RequestStatus;
 import com.bupt.charging.domain.SessionStatus;
 import com.bupt.charging.domain.StationConfig;
+import com.bupt.charging.dto.SchedulerDtos;
 import com.bupt.charging.repository.ChargingPileRepository;
 import com.bupt.charging.repository.ChargingRequestRepository;
 import com.bupt.charging.repository.ChargingSessionRepository;
@@ -51,13 +52,45 @@ public class SchedulerService {
 
     @Transactional
     public Optional<Assignment> dispatchOne(ChargeMode mode) {
+        return nextWaitingRequest(mode).flatMap(this::assignRequest);
+    }
+
+    @Transactional
+    public Optional<SchedulerDtos.DispatchAssignmentResponse> dispatchOne(ChargeMode mode, String carId) {
+        Optional<ChargingRequest> candidate = selectCandidate(mode, carId);
+        return candidate.flatMap(request -> assignRequest(request)
+                .map(assignment -> new SchedulerDtos.DispatchAssignmentResponse(
+                        request.getCarId(),
+                        assignment.pileId(),
+                        assignment.queuePosition(),
+                        assignment.expectedFinishHours()
+                )));
+    }
+
+    private Optional<ChargingRequest> selectCandidate(ChargeMode mode, String carId) {
+        if (carId != null && !carId.isBlank()) {
+            return requestRepository
+                    .findFirstByCarIdAndStatusInOrderByRequestTimeDesc(carId, List.of(RequestStatus.WAITING_AREA))
+                    .filter(request -> mode == null || request.getMode() == mode);
+        }
+        if (mode != null) {
+            return nextWaitingRequest(mode);
+        }
+        return requestRepository.findByStatusOrderByRequestTimeAsc(RequestStatus.WAITING_AREA).stream().findFirst();
+    }
+
+    private Optional<ChargingRequest> nextWaitingRequest(ChargeMode mode) {
         List<ChargingRequest> waiting = requestRepository.findByModeAndStatusOrderByRequestTimeAsc(
                 mode, RequestStatus.WAITING_AREA);
         if (waiting.isEmpty()) {
             return Optional.empty();
         }
 
-        ChargingRequest request = waiting.get(0);
+        return Optional.of(waiting.get(0));
+    }
+
+    private Optional<Assignment> assignRequest(ChargingRequest request) {
+        ChargeMode mode = request.getMode();
         List<ChargingPile> piles = pileRepository.findByModeOrderByPileIdAsc(mode);
         Map<String, List<ChargingRequest>> queues = pileQueues(piles);
         Map<String, PileQueueLoad> loads = pileLoads(piles, queues, stationClockService.currentStationTime());

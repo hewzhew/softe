@@ -113,6 +113,43 @@ class RestApiSmokeTest {
     }
 
     @Test
+    void dispatchOneMovesOnlyOneWaitingVehicle() throws Exception {
+        ResponseEntity<String> seedResponse = restTemplate.postForEntity("/api/demo/seed", null, String.class);
+        assertEquals(HttpStatus.OK, seedResponse.getStatusCode());
+
+        ResponseEntity<String> dispatchResponse = restTemplate.postForEntity(
+                "/api/scheduler/dispatch-one",
+                Map.of("mode", "FAST"),
+                String.class
+        );
+
+        assertEquals(HttpStatus.OK, dispatchResponse.getStatusCode());
+        JsonNode assignment = objectMapper.readTree(dispatchResponse.getBody()).path("data");
+        assertEquals("CAR-F-1", assignment.path("carId").asText());
+        ResponseEntity<String> snapshotResponse = restTemplate.getForEntity("/api/demo/snapshot", String.class);
+        JsonNode snapshotData = objectMapper.readTree(snapshotResponse.getBody()).path("data");
+        assertEquals(1, snapshotData.path("queues").path("pileQueues").size());
+        assertEquals(3, snapshotData.path("queues").path("waitingArea").size());
+    }
+
+    @Test
+    void dispatchOneCanMoveSpecifiedWaitingVehicle() throws Exception {
+        ResponseEntity<String> seedResponse = restTemplate.postForEntity("/api/demo/seed", null, String.class);
+        assertEquals(HttpStatus.OK, seedResponse.getStatusCode());
+
+        ResponseEntity<String> dispatchResponse = restTemplate.postForEntity(
+                "/api/scheduler/dispatch-one",
+                Map.of("carId", "CAR-S-1"),
+                String.class
+        );
+
+        assertEquals(HttpStatus.OK, dispatchResponse.getStatusCode());
+        JsonNode assignment = objectMapper.readTree(dispatchResponse.getBody()).path("data");
+        assertEquals("CAR-S-1", assignment.path("carId").asText());
+        assertTrue(assignment.path("pileId").asText().startsWith("T-"));
+    }
+
+    @Test
     void acceptanceScenarioEndpointReturnsTeacherCaseRows() throws Exception {
         ResponseEntity<String> response = restTemplate.getForEntity("/api/acceptance/scenario", String.class);
 

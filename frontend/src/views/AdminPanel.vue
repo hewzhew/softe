@@ -30,7 +30,10 @@
           <h2>充电桩运行监控</h2>
         </div>
         <div class="admin-actions">
-          <el-button type="success" :loading="dispatching" @click="dispatch">执行调度</el-button>
+          <el-button :loading="dispatching" @click="dispatchOne()">调度下一辆</el-button>
+          <el-button :loading="dispatching" @click="dispatchOne({ mode: 'FAST' })">快充下一辆</el-button>
+          <el-button :loading="dispatching" @click="dispatchOne({ mode: 'SLOW' })">慢充下一辆</el-button>
+          <el-button type="success" :loading="dispatching" @click="dispatch">自动补齐调度</el-button>
           <el-button :icon="Refresh" circle title="刷新" @click="refresh" />
         </div>
       </div>
@@ -90,6 +93,13 @@
           </el-table-column>
           <el-table-column label="申请时间" min-width="160">
             <template #default="{ row }">{{ formatDateTime(row.requestTime) }}</template>
+          </el-table-column>
+          <el-table-column label="操作" width="110" fixed="right">
+            <template #default="{ row }">
+              <el-button size="small" :loading="dispatching" @click="dispatchOne({ carId: row.carId })">
+                调度此车
+              </el-button>
+            </template>
           </el-table-column>
         </el-table>
       </el-card>
@@ -153,7 +163,7 @@ import { Refresh } from '@element-plus/icons-vue'
 import { api } from '../api/chargingApi'
 import StatusTag from '../components/StatusTag.vue'
 import { notifyStationChanged, stationEvents } from '../stores/stationEvents'
-import { executeStationDispatch } from '../utils/stationActions'
+import { executeStationDispatch, executeStationDispatchOne } from '../utils/stationActions'
 import { formatDateTime, formatHours, formatKw, formatKwh, modeLabel } from '../utils/display'
 
 const piles = ref([])
@@ -213,6 +223,27 @@ async function dispatch() {
     ElMessage.success(count > 0 ? `调度完成，${count} 辆车进入充电区` : '当前没有可调度车辆')
   } catch (error) {
     ElMessage.error(error.message || '调度失败')
+  } finally {
+    dispatching.value = false
+  }
+}
+
+async function dispatchOne(payload = {}) {
+  dispatching.value = true
+  try {
+    const assignment = await executeStationDispatchOne({
+      api,
+      payload,
+      refresh,
+      notify: notifyStationChanged
+    })
+    if (assignment) {
+      ElMessage.success(`${assignment.carId} 已进入 ${assignment.pileId} 队列`)
+    } else {
+      ElMessage.info('当前没有可调度车辆')
+    }
+  } catch (error) {
+    ElMessage.error(error.message || '单点调度失败')
   } finally {
     dispatching.value = false
   }

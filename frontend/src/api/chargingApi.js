@@ -33,6 +33,7 @@ export const api = {
 
   getQueues: () => unwrap(http.get('/queues')),
   dispatch: () => unwrap(http.post('/scheduler/dispatch')),
+  dispatchOne: (payload = {}) => unwrap(http.post('/scheduler/dispatch-one', payload)),
 
   createFault: (payload) => unwrap(http.post('/faults', payload)),
   recoverPile: (pileId) => unwrap(http.post(`/faults/${pileId}/recover`)),

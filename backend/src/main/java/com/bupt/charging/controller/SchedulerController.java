@@ -1,9 +1,11 @@
 package com.bupt.charging.controller;
 
 import com.bupt.charging.dto.ApiResult;
+import com.bupt.charging.dto.SchedulerDtos;
 import com.bupt.charging.service.SchedulerService;
 import com.bupt.charging.strategy.Assignment;
 import java.util.List;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -20,5 +22,17 @@ public class SchedulerController {
     @PostMapping("/dispatch")
     public ApiResult<List<Assignment>> dispatch() {
         return ApiResult.ok(schedulerService.dispatchAll());
+    }
+
+    @PostMapping("/dispatch-one")
+    public ApiResult<SchedulerDtos.DispatchAssignmentResponse> dispatchOne(
+            @RequestBody(required = false) SchedulerDtos.DispatchOneRequest request
+    ) {
+        SchedulerDtos.DispatchOneRequest safeRequest = request == null
+                ? new SchedulerDtos.DispatchOneRequest(null, null)
+                : request;
+        return ApiResult.ok(schedulerService
+                .dispatchOne(safeRequest.mode(), safeRequest.carId())
+                .orElse(null));
     }
 }
